@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Download System</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      header {
+        text-align: center;
+        padding: 20px 0;
+        margin-bottom: 30px;
+        border-bottom: 1px solid #eee;
+      }
+      h1 {
+        color: #333;
+      }
+      .file-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+      }
+      .file-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+      }
+      .file-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+      .file-icon {
+        font-size: 40px;
+        margin-bottom: 10px;
+      }
+      .pdf-icon {
+        color: #ff5252;
+      }
+      .xml-icon {
+        color: #2196f3;
+      }
+      .html-icon {
+        color: #ff9800;
+      }
+      .file-name {
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+      .file-description {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 15px;
+      }
+      .download-btn {
+        display: inline-block;
+        background-color: #4caf50;
+        color: white;
+        padding: 8px 16px;
+        text-decoration: none;
+        border-radius: 4px;
+        transition: background-color 0.3s;
+      }
+      .download-btn:hover {
+        background-color: #45a049;
+      }
+      footer {
+        margin-top: 50px;
+        text-align: center;
+        color: #777;
+        font-size: 14px;
+        border-top: 1px solid #eee;
+        padding-top: 20px;
+      }
+      .upload-section {
+        margin-top: 40px;
+        padding: 20px;
+        border: 1px dashed #ccc;
+        border-radius: 8px;
+        text-align: center;
+      }
+      .upload-btn {
+        background-color: #2196f3;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      .upload-btn:hover {
+        background-color: #0b7dda;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>File Download System</h1>
+      <p>Click on any file to download it to your system</p>
+    </header>
+
+    <main>
+      <h2>Available Files</h2>
+      <div class="file-container">
+        <!-- PDF Files -->
+        <div class="file-card">
+          <div class="file-icon pdf-icon">📄</div>
+          <div class="file-name">Sample Report.pdf</div>
+          <div class="file-description">Annual financial report (2024)</div>
+          <a
+            href="Kirin Holdings IR Press Japanese_20250221_011733103 (1).pdf"
+            download
+            class="download-btn"
+            >Download</a
+          >
+        </div>
+
+        <div class="file-card">
+          <div class="file-icon pdf-icon">📄</div>
+          <div class="file-name">User Manual.pdf</div>
+          <div class="file-description">Instructions for new users</div>
+          <a href="user_manual.pdf" download class="download-btn">Download</a>
+        </div>
+
+        <!-- XML Files -->
+        <div class="file-card">
+          <div class="file-icon xml-icon">🗂️</div>
+          <div class="file-name">Config Data.xml</div>
+          <div class="file-description">System configuration data</div>
+          <a href="config_data.xml" download class="download-btn">Download</a>
+        </div>
+
+        <div class="file-card">
+          <div class="file-icon xml-icon">🗂️</div>
+          <div class="file-name">Customer List.xml</div>
+          <div class="file-description">Sample customer database</div>
+          <a href="customer_list.xml" download class="download-btn">Download</a>
+        </div>
+
+        <!-- HTML Files -->
+        <div class="file-card">
+          <div class="file-icon html-icon">🌐</div>
+          <div class="file-name">Template.html</div>
+          <div class="file-description">Basic page template</div>
+          <a href="template.html" download class="download-btn">Download</a>
+        </div>
+
+        <div class="file-card">
+          <div class="file-icon html-icon">🌐</div>
+          <div class="file-name">Report Page.html</div>
+          <div class="file-description">Interactive report page</div>
+          <a href="report_page.html" download class="download-btn">Download</a>
+        </div>
+      </div>
+
+      <div class="upload-section">
+        <h2>Upload New Files</h2>
+        <p>Add new files to the system</p>
+        <input type="file" id="fileUpload" multiple style="display: none" />
+        <button
+          class="upload-btn"
+          onclick="document.getElementById('fileUpload').click()"
+        >
+          Select Files to Upload
+        </button>
+        <p>
+          <small
+            >Note: Upload functionality would require server-side
+            implementation</small
+          >
+        </p>
+      </div>
+    </main>
+
+    <footer>
+      <p>© 2025 File Download System. All rights reserved.</p>
+    </footer>
+
+    <script>
+      // In a real implementation, you would add server-side code to handle file uploads
+      document
+        .getElementById("fileUpload")
+        .addEventListener("change", function (e) {
+          const files = e.target.files;
+          if (files.length > 0) {
+            alert(
+              `Selected ${files.length} file(s). In a real implementation, these would be uploaded to the server.`
+            );
+            // Here you would typically send these files to your server
+          }
+        });
+    </script>
+  </body>
+</html>

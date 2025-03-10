@@ -4,7 +4,7 @@
     {
       "unique_id": "UMIN000057246",
       "disclosure_date": "2025\/03\/10",
-      "scientific": "Cardiac amyloidosis research using Vizamyl and Clearborn",
+      "scientific": "Editing data for testing",
       "condition": "Amyloidosis",
       "sponsor": "",
       "recruitment_status": "Open public recruiting",
@@ -21,7 +21,7 @@
       "condition": "Groin hernia",
       "sponsor": "",
       "recruitment_status": "Preinitiation",
-      "detail_link": ".\/ctr_view.cgi?recptno=R000065401",
+      "detail_link": ".\/ctr_view.cgi",
       "detail_text": "Detail",
       "history_link": ".\/ctr_his_list.cgi?recptno=R000065401",
       "history_text": "History",

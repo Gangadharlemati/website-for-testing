@@ -369,16 +369,41 @@
           justify-content: flex-end;
         }
       }
+
+
+              /* Add format selector style */
+              .format-selector {
+            margin: 1rem 0;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .format-option {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--primary-light);
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .format-option.selected {
+            background-color: var(--primary);
+            color: white;
+        }
+
     </style>
   </head>
   <body>
+    
     <div class="container">
       <header>
         <h1>File to JSON Converter</h1>
         <p class="subtitle">
-          Upload CSV or XLSX files and convert them to JSON
+          Upload CSV or XLSX files and convert them to JSON or XML
         </p>
       </header>
+      <div class="format-selector">
+        <div class="format-option selected" data-format="json">JSON</div>
+        <div class="format-option" data-format="xml">XML</div>
+    </div>
 
       <div class="app-container">
         <div class="tabs">
@@ -417,6 +442,7 @@
             <div class="progress" id="progress"></div>
           </div>
         </div>
+        
 
         <div class="tab-content" id="preview-tab" style="display: none">
           <div class="preview-container">
@@ -479,6 +505,7 @@
         const tabContents = document.querySelectorAll(".tab-content");
 
         let files = [];
+        let selectedFormat = 'json';
         let processedData = {};
 
         // Tab navigation
@@ -496,6 +523,20 @@
             document.getElementById(`${tabId}-tab`).style.display = "block";
           });
         });
+
+        document.querySelectorAll('.format-option').forEach(option => {
+    option.addEventListener('click', function() {
+        document.querySelectorAll('.format-option').forEach(o => o.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedFormat = this.dataset.format;
+        
+        // Update preview if file is selected
+        const selectedFile = fileSelector.value;
+        if (selectedFile && processedData[selectedFile]) {
+            displayJsonPreview(selectedFile, processedData[selectedFile]);
+        }
+    });
+});
 
         // File input change event
         fileInput.addEventListener("change", handleFileSelect);
@@ -779,6 +820,38 @@
           throw new Error("Unsupported file type.");
         }
 
+
+
+
+        function convertToXML(data, fileName) {
+    const rootName = fileName.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9]/g, "_");
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<${rootName}>\n`;
+    
+    data.forEach((item, index) => {
+        xml += `  <item id="${index + 1}">\n`;
+        for (const [key, value] of Object.entries(item)) {
+            const sanitizedKey = key.replace(/[^a-zA-Z0-9]/g, "_");
+            xml += `    <${sanitizedKey}>${escapeXML(value)}</${sanitizedKey}>\n`;
+        }
+        xml += "  </item>\n";
+    });
+    
+    xml += `</${rootName}>`;
+    return xml;
+}
+
+function escapeXML(unsafe) {
+      // Convert to string first to handle all value types
+      const str = String(unsafe);
+      return str.replace(/[<>&'"]/g, c => ({
+          '<': '&lt;',
+          '>': '&gt;',
+          '&': '&amp;',
+          '\'': '&apos;',
+          '"': '&quot;'
+      }[c]));
+  }
+
         // Process CSV
         function processCSV(data) {
           const lines = data.split("\n");
@@ -879,63 +952,76 @@
 
         // Download file
         function downloadFile(fileName) {
-          const jsonData = processedData[fileName];
-          const jsonString = JSON.stringify(jsonData, null, 2);
-          const blob = new Blob([jsonString], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
+    const data = processedData[fileName];
+    let content, extension;
+    
+    if (selectedFormat === 'json') {
+        content = JSON.stringify(data, null, 2);
+        extension = "json";
+    } else {
+        content = convertToXML(data, fileName);
+        extension = "xml";
+    }
 
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = fileName.replace(/\.(csv|xlsx)$/i, ".json");
-          a.click();
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const downloadName = fileName.replace(/\.[^/.]+$/, "") + `.${extension}`;
 
-          URL.revokeObjectURL(url);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = downloadName;
+    a.click();
+    URL.revokeObjectURL(url);
 
-          showNotification(
-            `${fileName.replace(/\.(csv|xlsx)$/i, ".json")} downloaded.`,
-            "success"
-          );
-        }
+    showNotification(`${downloadName} downloaded.`, "success");
+}
+
 
         // Download all files
         function downloadAllFiles() {
-          if (Object.keys(processedData).length === 0) return;
+    const zip = new JSZip();
+    
+    Object.keys(processedData).forEach(fileName => {
+        const data = processedData[fileName];
+        const extension = selectedFormat === 'json' ? 'json' : 'xml';
+        const content = selectedFormat === 'json' 
+            ? JSON.stringify(data, null, 2)
+            : convertToXML(data, fileName);
+        
+        zip.file(
+            fileName.replace(/\.[^/.]+$/, "") + `.${extension}`,
+            content
+        );
+    });
 
-          const zip = new JSZip();
-
-          // Add files to zip
-          Object.keys(processedData).forEach((fileName) => {
-            const jsonData = processedData[fileName];
-            const jsonString = JSON.stringify(jsonData, null, 2);
-
-            zip.file(fileName.replace(/\.(csv|xlsx)$/i, ".json"), jsonString);
-          });
-
-          // Generate zip
-          zip.generateAsync({ type: "blob" }).then(function (content) {
-            const url = URL.createObjectURL(content);
-
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "converted_files.zip";
-            a.click();
-
-            URL.revokeObjectURL(url);
-
-            showNotification("All files downloaded as zip.", "success");
-          });
-        }
-
+    zip.generateAsync({ type: "blob" }).then(content => {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `converted_files.${selectedFormat}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showNotification(`All files downloaded as ${selectedFormat} zip.`, "success");
+    });
+}
         // Display JSON preview
         function displayJsonPreview(fileName, data) {
-          previewContent.innerHTML = "";
-
-          const pre = document.createElement("pre");
-          pre.textContent = JSON.stringify(data, null, 2);
-
-          previewContent.appendChild(pre);
-        }
-
+    const previewTitle = document.querySelector('.preview-title');
+    previewTitle.textContent = `${selectedFormat.toUpperCase()} Preview`; // Update title dynamically
+    
+    previewContent.innerHTML = "";
+    
+    if (selectedFormat === 'json') {
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(data, null, 2);
+      previewContent.appendChild(pre);
+    } else {
+      const xmlString = convertToXML(data, fileName);
+      const pre = document.createElement("pre");
+      pre.textContent = xmlString;
+      previewContent.appendChild(pre);
+    }
+  }
         // Reset preview
         function resetPreview() {
           previewContent.innerHTML = `

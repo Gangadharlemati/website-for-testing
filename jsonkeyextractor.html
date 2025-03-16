@@ -100,6 +100,14 @@
       tr:nth-child(even) {
         background-color: #f9f9f9;
       }
+      .error {
+        color: #d32f2f;
+        background-color: #ffebee;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -115,6 +123,7 @@
           style="display: none"
         />
         <p id="file-info"></p>
+        <p id="error-message" class="error"></p>
       </div>
 
       <div id="key-selection" class="key-selection">
@@ -132,188 +141,291 @@
     </div>
 
     <script>
-     // DOM Elements and Constants
-const MAX_FILE_SIZE = 10000 * 1024 * 1024; // 5MB
-const dropArea = document.getElementById("drop-area");
-const fileInput = document.getElementById("fileInput");
-const keyList = document.getElementById("key-list");
-const downloadBtn = document.getElementById("download-btn");
-const previewTable = document.getElementById("preview-table");
-const previewContainer = document.getElementById("preview-container");
-const fileInfo = document.getElementById("file-info");
+      // DOM Elements and Constants
+      const MAX_FILE_SIZE = 10000 * 1024 * 1024; // 10MB
+      const dropArea = document.getElementById("drop-area");
+      const fileInput = document.getElementById("fileInput");
+      const keyList = document.getElementById("key-list");
+      const downloadBtn = document.getElementById("download-btn");
+      const previewTable = document.getElementById("preview-table");
+      const previewContainer = document.getElementById("preview-container");
+      const fileInfo = document.getElementById("file-info");
+      const errorMessage = document.getElementById("error-message");
 
-let jsonData = [];
-let uniqueKeys = new Set();
-let selectedKeys = [];
+      let jsonData = [];
+      let uniqueKeys = new Set();
+      let selectedKeys = [];
 
-// Event Listeners
-dropArea.addEventListener("click", () => fileInput.click());
-dropArea.addEventListener("dragover", handleDragOver);
-dropArea.addEventListener("dragleave", handleDragLeave);
-dropArea.addEventListener("drop", handleDrop);
-fileInput.addEventListener("change", handleFileSelect);
-downloadBtn.addEventListener("click", generateExcel);
+      // Event Listeners
+      dropArea.addEventListener("click", () => fileInput.click());
+      dropArea.addEventListener("dragover", handleDragOver);
+      dropArea.addEventListener("dragleave", handleDragLeave);
+      dropArea.addEventListener("drop", handleDrop);
+      fileInput.addEventListener("change", handleFileSelect);
+      downloadBtn.addEventListener("click", generateExcel);
 
-// Core Functions
-function handleDragOver(e) {
-  e.preventDefault();
-  dropArea.classList.add("dragover");
-}
+      // Core Functions
+      function handleDragOver(e) {
+        e.preventDefault();
+        dropArea.classList.add("dragover");
+      }
 
-function handleDragLeave(e) {
-  e.preventDefault();
-  dropArea.classList.remove("dragover");
-}
+      function handleDragLeave(e) {
+        e.preventDefault();
+        dropArea.classList.remove("dragover");
+      }
 
-function handleDrop(e) {
-  e.preventDefault();
-  dropArea.classList.remove("dragover");
-  const file = e.dataTransfer.files[0];
-  file && processFile(file);
-}
+      function handleDrop(e) {
+        e.preventDefault();
+        dropArea.classList.remove("dragover");
+        const file = e.dataTransfer.files[0];
+        file && processFile(file);
+      }
 
-function handleFileSelect(e) {
-  const file = e.target.files[0];
-  file && processFile(file);
-}
+      function handleFileSelect(e) {
+        const file = e.target.files[0];
+        file && processFile(file);
+      }
 
-function processFile(file) {
-  if (file.size > MAX_FILE_SIZE) {
-    alert("File size exceeds 5MB limit");
-    return;
-  }
+      function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.style.display = "block";
+      }
 
-  fileInfo.textContent = `File: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      jsonData = JSON.parse(e.target.result);
-      jsonData = Array.isArray(jsonData) ? jsonData : [jsonData];
-      extractUniqueKeys();
-      displayKeys();
-      document.getElementById("key-selection").style.display = "block";
-      previewContainer.style.display = "block";
-    } catch (error) {
-      alert("Invalid JSON: " + error.message);
-    }
-  };
-  reader.readAsText(file);
-}
+      function hideError() {
+        errorMessage.style.display = "none";
+      }
 
-function extractUniqueKeys() {
-  uniqueKeys.clear();
-  jsonData.forEach(item => extractKeysRecursive(item));
-}
+      function processFile(file) {
+        if (file.size > MAX_FILE_SIZE) {
+          showError(
+            `File size exceeds limit (${MAX_FILE_SIZE / (1024 * 1024)}MB)`
+          );
+          return;
+        }
 
-function extractKeysRecursive(obj, path = "") {
-  if (!obj || typeof obj !== "object") return;
+        hideError();
+        fileInfo.textContent = `File: ${file.name} (${(
+          file.size / 1024
+        ).toFixed(2)} KB)`;
 
-  const isArray = Array.isArray(obj);
-  const isObject = obj.constructor === Object;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const fileContent = e.target.result;
 
-  if (isArray) {
-    // Handle arrays by merging keys from all elements
-    const childKeys = new Set();
-    obj.forEach(item => {
-      extractKeysRecursive(item, path).forEach(k => childKeys.add(k));
-    });
-    childKeys.forEach(k => uniqueKeys.add(k));
-  } else if (isObject) {
-    Object.keys(obj).forEach(key => {
-      const currentPath = path ? `${path}.${key}` : key;
-      uniqueKeys.add(currentPath);
-      extractKeysRecursive(obj[key], currentPath);
-    });
-  }
-  
-  return Array.from(uniqueKeys);
-}
+            // Try to parse the JSON
+            try {
+              jsonData = JSON.parse(fileContent);
+            } catch (parseError) {
+              showError(`Invalid JSON format: ${parseError.message}`);
+              return;
+            }
 
-function getNestedValue(obj, path) {
-  return path.split('.').reduce((acc, part) => {
-    if (acc === undefined || acc === null) return undefined;
-    if (Array.isArray(acc)) return acc.flatMap(item => item[part] || []);
-    return acc[part];
-  }, obj);
-}
+            // Ensure jsonData is an array
+            if (!jsonData) {
+              showError("JSON data is empty or null");
+              return;
+            }
 
-function generateExcel() {
-  const header = selectedKeys;
-  const data = [];
+            // Convert to array if it's not already
+            jsonData = Array.isArray(jsonData) ? jsonData : [jsonData];
 
-  jsonData.forEach(item => {
-    // Get values for all selected keys (could be arrays or single values)
-    const values = selectedKeys.map(key => {
-      const val = getNestedValue(item, key);
-      return Array.isArray(val) ? val : [val];
-    });
+            // Check if jsonData is empty after conversion
+            if (jsonData.length === 0) {
+              showError("JSON data is empty (no items in array)");
+              return;
+            }
 
-    // Find maximum array length to create multiple rows
-    const maxLength = Math.max(...values.map(v => v.length));
+            // Extract keys and display
+            extractUniqueKeys();
+            displayKeys();
+            document.getElementById("key-selection").style.display = "block";
+            previewContainer.style.display = "block";
+          } catch (error) {
+            showError(`Error processing file: ${error.message}`);
+          }
+        };
+        reader.readAsText(file);
+      }
 
-    // Create rows for each array element
-    for (let i = 0; i < maxLength; i++) {
-      const row = values.map(v => {
-        const value = v[i];
-        if (value === undefined) return "";
-        if (typeof value === "object") return JSON.stringify(value);
-        return value;
-      });
-      data.push(row);
-    }
-  });
+      function extractUniqueKeys() {
+        uniqueKeys.clear();
+        // Ensure jsonData is not null or undefined and is an array before proceeding
+        if (jsonData && Array.isArray(jsonData)) {
+          jsonData.forEach((item) => {
+            if (item && typeof item === "object") {
+              extractKeysRecursive(item);
+            }
+          });
+        }
+      }
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
-  XLSX.utils.book_append_sheet(wb, ws, "Data");
-  XLSX.writeFile(wb, "export.xlsx");
-}
+      function extractKeysRecursive(obj, path = "") {
+        if (!obj || typeof obj !== "object") return [];
 
-// UI Helpers
-function displayKeys() {
-  keyList.innerHTML = Array.from(uniqueKeys)
-    .sort()
-    .map(key => `
+        const isArray = Array.isArray(obj);
+        const isObject = obj.constructor === Object;
+        const keys = [];
+
+        if (isArray) {
+          // Handle arrays by merging keys from all elements
+          const childKeys = new Set();
+          obj.forEach((item) => {
+            if (item && typeof item === "object") {
+              extractKeysRecursive(item, path).forEach((k) => childKeys.add(k));
+            }
+          });
+          childKeys.forEach((k) => uniqueKeys.add(k));
+          keys.push(...childKeys);
+        } else if (isObject) {
+          Object.keys(obj).forEach((key) => {
+            const currentPath = path ? `${path}.${key}` : key;
+            uniqueKeys.add(currentPath);
+            keys.push(currentPath);
+            const childKeys = extractKeysRecursive(obj[key], currentPath);
+            if (childKeys.length > 0) {
+              keys.push(...childKeys);
+            }
+          });
+        }
+
+        return keys;
+      }
+
+      function getNestedValue(obj, path) {
+        if (!obj || !path) return undefined;
+
+        return path.split(".").reduce((acc, part) => {
+          if (acc === undefined || acc === null) return undefined;
+          if (Array.isArray(acc)) {
+            const values = acc
+              .map((item) =>
+                item && typeof item === "object" ? item[part] : undefined
+              )
+              .filter((v) => v !== undefined);
+            return values.length > 0 ? values : undefined;
+          }
+          return acc[part];
+        }, obj);
+      }
+
+      function generateExcel() {
+        if (!selectedKeys.length) {
+          showError("Please select at least one key");
+          return;
+        }
+
+        const header = selectedKeys;
+        const data = [];
+
+        jsonData.forEach((item) => {
+          // Get values for all selected keys (could be arrays or single values)
+          const values = selectedKeys.map((key) => {
+            const val = getNestedValue(item, key);
+            return Array.isArray(val) ? val : [val];
+          });
+
+          // Find maximum array length to create multiple rows
+          const maxLength = Math.max(
+            ...values.map((v) => (Array.isArray(v) ? v.length : 1)),
+            1
+          );
+
+          // Create rows for each array element
+          for (let i = 0; i < maxLength; i++) {
+            const row = values.map((v) => {
+              const value = Array.isArray(v) ? v[i] : v;
+              if (value === undefined) return "";
+              if (typeof value === "object" && value !== null)
+                return JSON.stringify(value);
+              return value;
+            });
+            data.push(row);
+          }
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+        XLSX.utils.book_append_sheet(wb, ws, "Data");
+        XLSX.writeFile(wb, "export.xlsx");
+      }
+
+      // UI Helpers
+      function displayKeys() {
+        const keyArray = Array.from(uniqueKeys).sort();
+
+        if (keyArray.length === 0) {
+          showError("No keys found in the JSON data");
+          return;
+        }
+
+        keyList.innerHTML = keyArray
+          .map(
+            (key) => `
       <div class="key-item">
         <input type="checkbox" id="key-${key}" value="${key}" 
                onchange="handleKeySelect(event)">
         <label for="key-${key}">${key}</label>
       </div>
-    `).join("");
-}
+    `
+          )
+          .join("");
+      }
 
-function handleKeySelect(e) {
-  const key = e.target.value;
-  selectedKeys = e.target.checked
-    ? [...selectedKeys, key]
-    : selectedKeys.filter(k => k !== key);
+      function handleKeySelect(e) {
+        const key = e.target.value;
+        selectedKeys = e.target.checked
+          ? [...selectedKeys, key]
+          : selectedKeys.filter((k) => k !== key);
 
-  downloadBtn.disabled = !selectedKeys.length;
-  selectedKeys.length && generatePreview();
-}
+        downloadBtn.disabled = !selectedKeys.length;
+        if (selectedKeys.length) {
+          generatePreview();
+        } else {
+          previewTable.innerHTML = "";
+        }
+      }
 
-function generatePreview() {
-  previewTable.innerHTML = `
+      function generatePreview() {
+        const previewData = jsonData.slice(0, 5);
+
+        if (!previewData || previewData.length === 0) {
+          previewTable.innerHTML = "<p>No data available for preview</p>";
+          return;
+        }
+
+        previewTable.innerHTML = `
     <table>
-      <thead><tr>${selectedKeys.map(k => `<th>${k}</th>`).join("")}</tr></thead>
+      <thead><tr>${selectedKeys
+        .map((k) => `<th>${k}</th>`)
+        .join("")}</tr></thead>
       <tbody>
-        ${jsonData.slice(0, 5).map(item => `
-          <tr>${selectedKeys.map(k => {
-            const value = getNestedValue(item, k);
-            return `<td>${formatValue(Array.isArray(value) ? value[0] : value)}</td>`;
-          }).join("")}</tr>
-        `).join("")}
+        ${previewData
+          .map(
+            (item) => `
+          <tr>${selectedKeys
+            .map((k) => {
+              const value = getNestedValue(item, k);
+              return `<td>${formatValue(value)}</td>`;
+            })
+            .join("")}</tr>
+        `
+          )
+          .join("")}
       </tbody>
     </table>
   `;
-}
+      }
 
-function formatValue(value) {
-  if (value instanceof Date) return value.toISOString().split('T')[0];
-  if (typeof value === "object") return JSON.stringify(value);
-  return value ?? "";
-}
+      function formatValue(value) {
+        if (value === undefined || value === null) return "";
+        if (value instanceof Date) return value.toISOString().split("T")[0];
+        if (Array.isArray(value))
+          return value.length > 0 ? formatValue(value[0]) : "";
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
+      }
     </script>
   </body>
 </html>

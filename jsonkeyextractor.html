@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JSON Key Extractor & Excel Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      h1,
+      h2 {
+        color: #333;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .drop-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 30px;
+        text-align: center;
+        cursor: pointer;
+        background-color: #f9f9f9;
+        transition: background-color 0.3s;
+      }
+      .drop-area:hover,
+      .drop-area.dragover {
+        background-color: #eee;
+        border-color: #999;
+      }
+      .key-selection {
+        display: none;
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 8px;
+      }
+      .key-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      .key-item {
+        display: flex;
+        align-items: center;
+        background-color: #f0f0f0;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .key-item input {
+        margin-right: 5px;
+      }
+      button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      #file-info {
+        font-style: italic;
+        margin-top: 10px;
+      }
+      .preview-container {
+        display: none;
+        margin-top: 20px;
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #f2f2f2;
+      }
+      tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>JSON Key Extractor & Excel Generator</h1>
+
+    <div class="container">
+      <div id="drop-area" class="drop-area">
+        <p>Drag & drop your JSON file here or click to select</p>
+        <input
+          type="file"
+          id="fileInput"
+          accept=".json,.txt"
+          style="display: none"
+        />
+        <p id="file-info"></p>
+      </div>
+
+      <div id="key-selection" class="key-selection">
+        <h2>Available Keys</h2>
+        <p>Select the keys you want to include in your Excel file:</p>
+        <div id="key-list" class="key-list"></div>
+        <button id="download-btn" disabled>Download Excel</button>
+      </div>
+
+      <div id="preview-container" class="preview-container">
+        <h2>Data Preview</h2>
+        <p>Showing the first 5 records with selected keys:</p>
+        <div id="preview-table"></div>
+      </div>
+    </div>
+
+    <script>
+      // DOM Elements
+      const dropArea = document.getElementById("drop-area");
+      const fileInput = document.getElementById("fileInput");
+      const fileInfo = document.getElementById("file-info");
+      const keySelection = document.getElementById("key-selection");
+      const keyList = document.getElementById("key-list");
+      const downloadBtn = document.getElementById("download-btn");
+      const previewContainer = document.getElementById("preview-container");
+      const previewTable = document.getElementById("preview-table");
+
+      // Variables to store data
+      let jsonData = [];
+      let uniqueKeys = new Set();
+      let selectedKeys = [];
+
+      // Event Listeners
+      dropArea.addEventListener("click", () => fileInput.click());
+      dropArea.addEventListener("dragover", handleDragOver);
+      dropArea.addEventListener("dragleave", handleDragLeave);
+      dropArea.addEventListener("drop", handleDrop);
+      fileInput.addEventListener("change", handleFileSelect);
+      downloadBtn.addEventListener("click", generateExcel);
+
+      // Functions
+      function handleDragOver(e) {
+        e.preventDefault();
+        dropArea.classList.add("dragover");
+      }
+
+      function handleDragLeave(e) {
+        e.preventDefault();
+        dropArea.classList.remove("dragover");
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        dropArea.classList.remove("dragover");
+
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          processFile(file);
+        }
+      }
+
+      function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (file) {
+          processFile(file);
+        }
+      }
+
+      function processFile(file) {
+        if (!file.name.endsWith(".json") && !file.name.endsWith(".txt")) {
+          alert("Please upload a JSON or text file containing JSON data.");
+          return;
+        }
+
+        fileInfo.textContent = `File: ${file.name}`;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const content = e.target.result;
+            jsonData = JSON.parse(content);
+
+            // Convert to array if it's an object
+            if (!Array.isArray(jsonData)) {
+              jsonData = [jsonData];
+            }
+
+            extractUniqueKeys();
+            displayKeys();
+            keySelection.style.display = "block";
+          } catch (error) {
+            alert("Error parsing JSON: " + error.message);
+            console.error(error);
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function extractUniqueKeys() {
+        uniqueKeys = new Set();
+
+        // Recursive function to extract all keys at any depth
+        function extractKeysRecursive(obj, path = "") {
+          if (obj === null || obj === undefined) {
+            return;
+          }
+
+          if (Array.isArray(obj)) {
+            // For arrays, check if they contain objects
+            for (let i = 0; i < obj.length; i++) {
+              if (typeof obj[i] === "object" && obj[i] !== null) {
+                extractKeysRecursive(obj[i], path);
+              }
+            }
+          } else if (typeof obj === "object") {
+            // For objects, process each key
+            for (const key in obj) {
+              const currentPath = path ? `${path}.${key}` : key;
+              uniqueKeys.add(currentPath);
+
+              if (obj[key] !== null && typeof obj[key] === "object") {
+                extractKeysRecursive(obj[key], currentPath);
+              }
+            }
+          }
+        }
+
+        // Process each item in the array
+        jsonData.forEach((item) => extractKeysRecursive(item, ""));
+      }
+
+      function displayKeys() {
+        keyList.innerHTML = "";
+
+        // Convert Set to Array and sort
+        const sortedKeys = Array.from(uniqueKeys).sort();
+
+        sortedKeys.forEach((key) => {
+          const keyItem = document.createElement("div");
+          keyItem.className = "key-item";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = key;
+          checkbox.id = `key-${key.replace(/\./g, "-")}`;
+          checkbox.addEventListener("change", handleKeySelection);
+
+          const label = document.createElement("label");
+          label.textContent = key;
+          label.setAttribute("for", `key-${key.replace(/\./g, "-")}`);
+
+          keyItem.appendChild(checkbox);
+          keyItem.appendChild(label);
+          keyList.appendChild(keyItem);
+        });
+      }
+
+      function handleKeySelection(e) {
+        const key = e.target.value;
+
+        if (e.target.checked) {
+          if (!selectedKeys.includes(key)) {
+            selectedKeys.push(key);
+          }
+        } else {
+          selectedKeys = selectedKeys.filter((k) => k !== key);
+        }
+
+        downloadBtn.disabled = selectedKeys.length === 0;
+
+        if (selectedKeys.length > 0) {
+          generatePreview();
+          previewContainer.style.display = "block";
+        } else {
+          previewContainer.style.display = "none";
+        }
+      }
+
+      // Reliable function to get deeply nested values
+      function getNestedValue(obj, path) {
+        if (!path) return undefined;
+
+        const keys = path.split(".");
+        let current = obj;
+
+        for (const key of keys) {
+          if (
+            current === null ||
+            current === undefined ||
+            typeof current !== "object"
+          ) {
+            return undefined;
+          }
+          current = current[key];
+        }
+
+        return current;
+      }
+
+      function generatePreview() {
+        const previewData = jsonData.slice(0, 5);
+        let tableHTML = "<table><thead><tr>";
+
+        selectedKeys.forEach((key) => {
+          tableHTML += `<th>${key}</th>`;
+        });
+
+        tableHTML += "</tr></thead><tbody>";
+
+        previewData.forEach((item) => {
+          tableHTML += "<tr>";
+
+          selectedKeys.forEach((key) => {
+            const value = getNestedValue(item, key);
+            tableHTML += `<td>${formatValue(value)}</td>`;
+          });
+
+          tableHTML += "</tr>";
+        });
+
+        tableHTML += "</tbody></table>";
+        previewTable.innerHTML = tableHTML;
+      }
+
+      function formatValue(value) {
+        if (value === undefined || value === null) return "";
+        if (Array.isArray(value)) return JSON.stringify(value);
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
+      }
+
+      function generateExcel() {
+        // Create an array of objects where each object has the selected keys as properties
+        const rows = [];
+
+        // Process each data item
+        for (let i = 0; i < jsonData.length; i++) {
+          const item = jsonData[i];
+          const row = {};
+
+          // For each selected key, get its value from the item
+          for (const key of selectedKeys) {
+            // Extract value using the path notation (e.g., "user.name")
+            const value = getNestedValue(item, key);
+
+            // Format the value for Excel
+            if (value === undefined || value === null) {
+              row[key] = "";
+            } else if (typeof value === "object") {
+              row[key] = JSON.stringify(value);
+            } else {
+              row[key] = value;
+            }
+          }
+
+          rows.push(row);
+        }
+
+        // Log the first few rows to verify data
+        console.log("Excel data (first 2 rows):", rows.slice(0, 2));
+
+        try {
+          // Create a worksheet with the data
+          const ws = XLSX.utils.json_to_sheet(rows);
+
+          // Create a workbook and add the worksheet
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "JSONData");
+
+          // Generate the Excel file and trigger download
+          XLSX.writeFile(wb, "json_extract.xlsx");
+        } catch (error) {
+          console.error("Excel generation error:", error);
+          alert("Error generating Excel file: " + error.message);
+        }
+      }
+    </script>
+  </body>
+</html>

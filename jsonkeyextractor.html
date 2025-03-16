@@ -132,265 +132,194 @@
     </div>
 
     <script>
-      // DOM Elements
-      const dropArea = document.getElementById("drop-area");
-      const fileInput = document.getElementById("fileInput");
-      const fileInfo = document.getElementById("file-info");
-      const keySelection = document.getElementById("key-selection");
-      const keyList = document.getElementById("key-list");
-      const downloadBtn = document.getElementById("download-btn");
-      const previewContainer = document.getElementById("preview-container");
-      const previewTable = document.getElementById("preview-table");
+     // DOM Elements and Constants
+// DOM Elements and Constants
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const dropArea = document.getElementById("drop-area");
+const fileInput = document.getElementById("fileInput");
+const keyList = document.getElementById("key-list");
+const downloadBtn = document.getElementById("download-btn");
+const previewTable = document.getElementById("preview-table");
 
-      // Variables to store data
-      let jsonData = [];
-      let uniqueKeys = new Set();
-      let selectedKeys = [];
+let jsonData = [];
+let uniqueKeys = new Set();
+let selectedKeys = [];
 
-      // Event Listeners
-      dropArea.addEventListener("click", () => fileInput.click());
-      dropArea.addEventListener("dragover", handleDragOver);
-      dropArea.addEventListener("dragleave", handleDragLeave);
-      dropArea.addEventListener("drop", handleDrop);
-      fileInput.addEventListener("change", handleFileSelect);
-      downloadBtn.addEventListener("click", generateExcel);
+// Event Listeners
+dropArea.addEventListener("click", () => fileInput.click());
+dropArea.addEventListener("dragover", handleDragOver);
+dropArea.addEventListener("dragleave", handleDragLeave);
+dropArea.addEventListener("drop", handleDrop);
+fileInput.addEventListener("change", handleFileSelect);
+downloadBtn.addEventListener("click", generateExcel);
 
-      // Functions
-      function handleDragOver(e) {
-        e.preventDefault();
-        dropArea.classList.add("dragover");
-      }
+// Core Functions
+function handleDragOver(e) {
+  e.preventDefault();
+  dropArea.classList.add("dragover");
+}
 
-      function handleDragLeave(e) {
-        e.preventDefault();
-        dropArea.classList.remove("dragover");
-      }
+function handleDragLeave(e) {
+  e.preventDefault();
+  dropArea.classList.remove("dragover");
+}
 
-      function handleDrop(e) {
-        e.preventDefault();
-        dropArea.classList.remove("dragover");
+function handleDrop(e) {
+  e.preventDefault();
+  dropArea.classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  file && processFile(file);
+}
 
-        const file = e.dataTransfer.files[0];
-        if (file) {
-          processFile(file);
-        }
-      }
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  file && processFile(file);
+}
 
-      function handleFileSelect(e) {
-        const file = e.target.files[0];
-        if (file) {
-          processFile(file);
-        }
-      }
+function processFile(file) {
+  if (file.size > MAX_FILE_SIZE) {
+    alert("File size exceeds 5MB limit");
+    return;
+  }
 
-      function processFile(file) {
-        if (!file.name.endsWith(".json") && !file.name.endsWith(".txt")) {
-          alert("Please upload a JSON or text file containing JSON data.");
-          return;
-        }
+  showLoader();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      jsonData = JSON.parse(e.target.result);
+      jsonData = Array.isArray(jsonData) ? jsonData : [jsonData];
+      extractUniqueKeys();
+      displayKeys();
+      document.getElementById("key-selection").style.display = "block";
+    } catch (error) {
+      alert("Invalid JSON: " + error.message);
+    }
+    hideLoader();
+  };
+  reader.readAsText(file);
+}
 
-        fileInfo.textContent = `File: ${file.name}`;
+function extractUniqueKeys() {
+  uniqueKeys.clear();
+  jsonData.forEach(item => extractKeysRecursive(item));
+}
 
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          try {
-            const content = e.target.result;
-            jsonData = JSON.parse(content);
+function extractKeysRecursive(obj, path = "") {
+  if (!obj || typeof obj !== "object") return;
 
-            // Convert to array if it's an object
-            if (!Array.isArray(jsonData)) {
-              jsonData = [jsonData];
-            }
+  const isArray = Array.isArray(obj);
+  const isObject = obj.constructor === Object;
 
-            extractUniqueKeys();
-            displayKeys();
-            keySelection.style.display = "block";
-          } catch (error) {
-            alert("Error parsing JSON: " + error.message);
-            console.error(error);
-          }
-        };
-        reader.readAsText(file);
-      }
+  if (isArray) {
+    // Handle arrays by merging keys from all elements
+    const childKeys = new Set();
+    obj.forEach(item => {
+      extractKeysRecursive(item, path).forEach(k => childKeys.add(k));
+    });
+    childKeys.forEach(k => uniqueKeys.add(k));
+  } else if (isObject) {
+    Object.keys(obj).forEach(key => {
+      const currentPath = path ? `${path}.${key}` : key;
+      uniqueKeys.add(currentPath);
+      extractKeysRecursive(obj[key], currentPath);
+    });
+  }
+  
+  return Array.from(uniqueKeys);
+}
 
-      function extractUniqueKeys() {
-        uniqueKeys = new Set();
+function getNestedValue(obj, path) {
+  return path.split('.').reduce((acc, part) => {
+    if (acc === undefined || acc === null) return undefined;
+    if (Array.isArray(acc)) return acc.flatMap(item => item[part] || []);
+    return acc[part];
+  }, obj);
+}
 
-        // Recursive function to extract all keys at any depth
-        function extractKeysRecursive(obj, path = "") {
-          if (obj === null || obj === undefined) {
-            return;
-          }
+function generateExcel() {
+  const header = selectedKeys;
+  const data = [];
 
-          if (Array.isArray(obj)) {
-            // For arrays, check if they contain objects
-            for (let i = 0; i < obj.length; i++) {
-              if (typeof obj[i] === "object" && obj[i] !== null) {
-                extractKeysRecursive(obj[i], path);
-              }
-            }
-          } else if (typeof obj === "object") {
-            // For objects, process each key
-            for (const key in obj) {
-              const currentPath = path ? `${path}.${key}` : key;
-              uniqueKeys.add(currentPath);
+  jsonData.forEach(item => {
+    // Get values for all selected keys (could be arrays or single values)
+    const values = selectedKeys.map(key => {
+      const val = getNestedValue(item, key);
+      return Array.isArray(val) ? val : [val];
+    });
 
-              if (obj[key] !== null && typeof obj[key] === "object") {
-                extractKeysRecursive(obj[key], currentPath);
-              }
-            }
-          }
-        }
+    // Find maximum array length to create multiple rows
+    const maxLength = Math.max(...values.map(v => v.length));
 
-        // Process each item in the array
-        jsonData.forEach((item) => extractKeysRecursive(item, ""));
-      }
-
-      function displayKeys() {
-        keyList.innerHTML = "";
-
-        // Convert Set to Array and sort
-        const sortedKeys = Array.from(uniqueKeys).sort();
-
-        sortedKeys.forEach((key) => {
-          const keyItem = document.createElement("div");
-          keyItem.className = "key-item";
-
-          const checkbox = document.createElement("input");
-          checkbox.type = "checkbox";
-          checkbox.value = key;
-          checkbox.id = `key-${key.replace(/\./g, "-")}`;
-          checkbox.addEventListener("change", handleKeySelection);
-
-          const label = document.createElement("label");
-          label.textContent = key;
-          label.setAttribute("for", `key-${key.replace(/\./g, "-")}`);
-
-          keyItem.appendChild(checkbox);
-          keyItem.appendChild(label);
-          keyList.appendChild(keyItem);
-        });
-      }
-
-      function handleKeySelection(e) {
-        const key = e.target.value;
-
-        if (e.target.checked) {
-          if (!selectedKeys.includes(key)) {
-            selectedKeys.push(key);
-          }
-        } else {
-          selectedKeys = selectedKeys.filter((k) => k !== key);
-        }
-
-        downloadBtn.disabled = selectedKeys.length === 0;
-
-        if (selectedKeys.length > 0) {
-          generatePreview();
-          previewContainer.style.display = "block";
-        } else {
-          previewContainer.style.display = "none";
-        }
-      }
-
-      // Reliable function to get deeply nested values
-      function getNestedValue(obj, path) {
-        if (!path) return undefined;
-
-        const keys = path.split(".");
-        let current = obj;
-
-        for (const key of keys) {
-          if (
-            current === null ||
-            current === undefined ||
-            typeof current !== "object"
-          ) {
-            return undefined;
-          }
-          current = current[key];
-        }
-
-        return current;
-      }
-
-      function generatePreview() {
-        const previewData = jsonData.slice(0, 5);
-        let tableHTML = "<table><thead><tr>";
-
-        selectedKeys.forEach((key) => {
-          tableHTML += `<th>${key}</th>`;
-        });
-
-        tableHTML += "</tr></thead><tbody>";
-
-        previewData.forEach((item) => {
-          tableHTML += "<tr>";
-
-          selectedKeys.forEach((key) => {
-            const value = getNestedValue(item, key);
-            tableHTML += `<td>${formatValue(value)}</td>`;
-          });
-
-          tableHTML += "</tr>";
-        });
-
-        tableHTML += "</tbody></table>";
-        previewTable.innerHTML = tableHTML;
-      }
-
-      function formatValue(value) {
-        if (value === undefined || value === null) return "";
-        if (Array.isArray(value)) return JSON.stringify(value);
+    // Create rows for each array element
+    for (let i = 0; i < maxLength; i++) {
+      const row = values.map(v => {
+        const value = v[i];
+        if (value === undefined) return "";
         if (typeof value === "object") return JSON.stringify(value);
-        return String(value);
-      }
+        return value;
+      });
+      data.push(row);
+    }
+  });
 
-      function generateExcel() {
-        // Create an array of objects where each object has the selected keys as properties
-        const rows = [];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  XLSX.writeFile(wb, "export.xlsx");
+}
 
-        // Process each data item
-        for (let i = 0; i < jsonData.length; i++) {
-          const item = jsonData[i];
-          const row = {};
+// UI Helpers
+function displayKeys() {
+  keyList.innerHTML = Array.from(uniqueKeys)
+    .sort()
+    .map(key => `
+      <div class="key-item">
+        <input type="checkbox" id="key-${key}" value="${key}" 
+               onchange="handleKeySelect(event)">
+        <label for="key-${key}">${key}</label>
+      </div>
+    `).join("");
+}
 
-          // For each selected key, get its value from the item
-          for (const key of selectedKeys) {
-            // Extract value using the path notation (e.g., "user.name")
-            const value = getNestedValue(item, key);
+function handleKeySelect(e) {
+  const key = e.target.value;
+  selectedKeys = e.target.checked
+    ? [...selectedKeys, key]
+    : selectedKeys.filter(k => k !== key);
 
-            // Format the value for Excel
-            if (value === undefined || value === null) {
-              row[key] = "";
-            } else if (typeof value === "object") {
-              row[key] = JSON.stringify(value);
-            } else {
-              row[key] = value;
-            }
-          }
+  downloadBtn.disabled = !selectedKeys.length;
+  selectedKeys.length && generatePreview();
+}
 
-          rows.push(row);
-        }
+function generatePreview() {
+  previewTable.innerHTML = `
+    <table>
+      <thead><tr>${selectedKeys.map(k => `<th>${k}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${jsonData.slice(0, 5).map(item => `
+          <tr>${selectedKeys.map(k => {
+            const value = getNestedValue(item, k);
+            return `<td>${formatValue(Array.isArray(value) ? value[0] : value)}</td>`;
+          }).join("")}</tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
 
-        // Log the first few rows to verify data
-        console.log("Excel data (first 2 rows):", rows.slice(0, 2));
+function formatValue(value) {
+  if (value instanceof Date) return value.toISOString().split('T')[0];
+  if (typeof value === "object") return JSON.stringify(value);
+  return value ?? "";
+}
 
-        try {
-          // Create a worksheet with the data
-          const ws = XLSX.utils.json_to_sheet(rows);
+function showLoader() {
+  document.body.classList.add("loading");
+}
 
-          // Create a workbook and add the worksheet
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, "JSONData");
-
-          // Generate the Excel file and trigger download
-          XLSX.writeFile(wb, "json_extract.xlsx");
-        } catch (error) {
-          console.error("Excel generation error:", error);
-          alert("Error generating Excel file: " + error.message);
-        }
-      }
+function hideLoader() {
+  document.body.classList.remove("loading");
+}
     </script>
   </body>
 </html>

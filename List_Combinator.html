@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>List Combinator</title>
+  </head>
+
+  <body>
+    <style>
+      /* Base Styles */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background-color: #f5f7fa;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin-bottom: 15px;
+      }
+
+      h1 {
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      h2 {
+        color: #3498db;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 5px;
+      }
+
+      button {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      button:hover {
+        background-color: #2980b9;
+      }
+
+      input[type="text"],
+      textarea {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        margin-bottom: 10px;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      /* List Section */
+      .list-section,
+      .combination-section,
+      .template-section,
+      .output-section {
+        background-color: white;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .list-input-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+
+      .list-input-group input {
+        margin-bottom: 0;
+      }
+
+      .list-input-group input:first-child {
+        flex: 1;
+      }
+
+      .list-input-group input:nth-child(2) {
+        flex: 2;
+      }
+
+      .available-lists {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .list-item {
+        background-color: #e8f4fc;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #bde0f3;
+        cursor: move;
+        transition: all 0.3s;
+      }
+
+      .list-item:hover {
+        background-color: #d1e9f8;
+      }
+
+      .list-item .list-name {
+        font-weight: bold;
+      }
+
+      .list-item .list-values {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+      }
+
+      .list-item .remove-list {
+        float: right;
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        padding: 2px 6px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.8em;
+      }
+
+      /* Combination Area */
+      .combination-area {
+        min-height: 200px;
+        border: 2px dashed #3498db;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 15px;
+        background-color: #f9f9f9;
+      }
+
+      .list-node {
+        display: inline-block;
+        background-color: #e8f4fc;
+        border: 1px solid #bde0f3;
+        border-radius: 6px;
+        padding: 10px;
+        margin: 5px;
+        min-width: 120px;
+        position: relative;
+      }
+
+      .list-node.parallel {
+        background-color: #d5f5e3;
+        border-color: #abebc6;
+      }
+
+      .list-node-header {
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .list-node-body {
+        min-height: 50px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.5);
+        border-radius: 4px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
+
+      .list-node-type {
+        font-size: 0.8em;
+        padding: 2px 6px;
+        background-color: #3498db;
+        color: white;
+        border-radius: 10px;
+      }
+
+      .list-node-type.parallel {
+        background-color: #2ecc71;
+      }
+
+      /* Template and Output Sections */
+      .template-controls,
+      .output-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+      }
+
+      .output-type {
+        display: flex;
+        gap: 15px;
+      }
+
+      .output-area {
+        margin-top: 15px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: #f9f9f9;
+        min-height: 100px;
+        max-height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+
+      /* Dragging States */
+      .dragging {
+        opacity: 0.5;
+      }
+
+      .drag-over {
+        background-color: #d1e9f8;
+      }
+    </style>
+    <div class="container">
+      <h1>List Combinator</h1>
+
+      <div class="list-section">
+        <h2>Lists</h2>
+        <div class="list-inputs">
+          <div class="list-input-group">
+            <input type="text" id="list-name" placeholder="List name" />
+            <input
+              type="text"
+              id="list-items"
+              placeholder="Items (comma separated)"
+            />
+            <button id="add-list">Add List</button>
+          </div>
+        </div>
+
+        <div class="lists-container">
+          <h3>Available Lists:</h3>
+          <div id="available-lists" class="available-lists"></div>
+        </div>
+      </div>
+
+      <div class="combination-section">
+        <h2>Combination Structure</h2>
+        <div class="combination-builder">
+          <p>
+            Drag lists to build your structure. Nest lists by dropping one
+            inside another.
+          </p>
+          <div id="combination-area" class="combination-area"></div>
+          <button id="clear-combination">Clear Structure</button>
+        </div>
+      </div>
+
+      <div class="template-section">
+        <h2>String Template</h2>
+        <textarea
+          id="template-input"
+          placeholder="Enter your template with {listName} placeholders"
+        ></textarea>
+        <div class="template-controls">
+          <button id="generate-output">Generate Output</button>
+        </div>
+      </div>
+
+      <div class="output-section">
+        <h2>Output</h2>
+        <div class="output-controls">
+          <div class="output-type">
+            <label>
+              <input type="radio" name="output-type" value="text" checked />
+              Text
+            </label>
+            <label>
+              <input type="radio" name="output-type" value="list" /> List
+            </label>
+          </div>
+        </div>
+        <div id="output-area" class="output-area"></div>
+      </div>
+    </div>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Store all the lists
+        const lists = {};
+
+        // DOM Elements
+        const listNameInput = document.getElementById("list-name");
+        const listItemsInput = document.getElementById("list-items");
+        const addListBtn = document.getElementById("add-list");
+        const availableListsContainer =
+          document.getElementById("available-lists");
+        const combinationArea = document.getElementById("combination-area");
+        const clearCombinationBtn =
+          document.getElementById("clear-combination");
+        const templateInput = document.getElementById("template-input");
+        const generateOutputBtn = document.getElementById("generate-output");
+        const outputArea = document.getElementById("output-area");
+        const outputTypeRadios = document.getElementsByName("output-type");
+
+        // Add event listeners
+        addListBtn.addEventListener("click", addList);
+        clearCombinationBtn.addEventListener("click", clearCombination);
+        generateOutputBtn.addEventListener("click", generateOutput);
+
+        // Add a new list
+        function addList() {
+          const name = listNameInput.value.trim();
+          let itemsStr = listItemsInput.value.trim();
+
+          if (!name || !itemsStr) {
+            alert("Please enter a list name and items");
+            return;
+          }
+
+          if (lists[name]) {
+            alert("A list with that name already exists");
+            return;
+          }
+
+          // Process items with proper handling of quotes
+          let items = [];
+
+          // Check if the input starts with [ and ends with ], which indicates JSON array format
+          if (itemsStr.startsWith("[") && itemsStr.endsWith("]")) {
+            try {
+              items = JSON.parse(itemsStr);
+            } catch (e) {
+              // If JSON parsing fails, fall back to comma splitting
+              items = parseCommaSeparatedValues(itemsStr);
+            }
+          } else {
+            items = parseCommaSeparatedValues(itemsStr);
+          }
+
+          lists[name] = items;
+
+          // Create a visual element for the list
+          const listElement = document.createElement("div");
+          listElement.className = "list-item";
+          listElement.setAttribute("draggable", "true");
+          listElement.setAttribute("data-list-name", name);
+
+          listElement.innerHTML = `
+      <div class="list-name">${name}</div>
+      <div class="list-values">[${items
+        .map((item) => (typeof item === "string" ? `"${item}"` : item))
+        .join(", ")}]</div>
+      <button class="remove-list">×</button>
+    `;
+
+          // Add event listener for the remove button
+          listElement
+            .querySelector(".remove-list")
+            .addEventListener("click", function (e) {
+              e.stopPropagation();
+              removeList(name);
+            });
+
+          // Add drag events
+          listElement.addEventListener("dragstart", handleDragStart);
+          listElement.addEventListener("dragend", handleDragEnd);
+
+          availableListsContainer.appendChild(listElement);
+
+          // Clear inputs
+          listNameInput.value = "";
+          listItemsInput.value = "";
+        }
+
+        // Parse comma-separated values with support for quoted strings
+        function parseCommaSeparatedValues(input) {
+          const result = [];
+          let current = "";
+          let inQuotes = false;
+          let escapeNext = false;
+
+          for (let i = 0; i < input.length; i++) {
+            const char = input[i];
+
+            if (escapeNext) {
+              current += char;
+              escapeNext = false;
+              continue;
+            }
+
+            if (char === "\\") {
+              escapeNext = true;
+              continue;
+            }
+
+            if (char === '"' || char === "'") {
+              inQuotes = !inQuotes;
+              continue;
+            }
+
+            if (char === "," && !inQuotes) {
+              result.push(current.trim());
+              current = "";
+              continue;
+            }
+
+            current += char;
+          }
+
+          if (current.trim()) {
+            result.push(current.trim());
+          }
+
+          return result;
+        }
+
+        // Remove a list
+        function removeList(name) {
+          delete lists[name];
+
+          // Remove from available lists
+          const listElement = availableListsContainer.querySelector(
+            `[data-list-name="${name}"]`
+          );
+          if (listElement) {
+            availableListsContainer.removeChild(listElement);
+          }
+
+          // Remove from combination area if present
+          const combinationElements = combinationArea.querySelectorAll(
+            `[data-list-name="${name}"]`
+          );
+          combinationElements.forEach((element) => {
+            if (element.parentNode) {
+              element.parentNode.removeChild(element);
+            }
+          });
+        }
+
+        // Clear the combination area
+        function clearCombination() {
+          combinationArea.innerHTML = "";
+        }
+
+        // Drag and Drop functionality
+        function handleDragStart(e) {
+          e.dataTransfer.setData(
+            "text/plain",
+            e.target.getAttribute("data-list-name")
+          );
+          e.target.classList.add("dragging");
+        }
+
+        function handleDragEnd(e) {
+          e.target.classList.remove("dragging");
+        }
+
+        // Set up drag and drop for the combination area
+        combinationArea.addEventListener("dragover", function (e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+
+          const target = findDropTarget(e.target);
+          if (target) {
+            target.classList.add("drag-over");
+          }
+        });
+
+        combinationArea.addEventListener("dragleave", function (e) {
+          const target = findDropTarget(e.target);
+          if (target) {
+            target.classList.remove("drag-over");
+          }
+        });
+
+        combinationArea.addEventListener("drop", function (e) {
+          e.preventDefault();
+
+          const listName = e.dataTransfer.getData("text/plain");
+          const target = findDropTarget(e.target);
+
+          // Check if this list already exists in the target to avoid duplicates
+          if (target && target !== combinationArea) {
+            target.classList.remove("drag-over");
+
+            // Check if this list already exists as a direct child of the target
+            const existingList = target.querySelector(
+              `:scope > .list-node[data-list-name="${listName}"]`
+            );
+
+            if (!existingList) {
+              handleListDrop(listName, target);
+            } else {
+              alert(`List "${listName}" is already added to this level`);
+            }
+          } else {
+            // Top-level drop to combination area
+            const existingTopList = combinationArea.querySelector(
+              `:scope > .list-node[data-list-name="${listName}"]`
+            );
+
+            if (!existingTopList) {
+              createListNode(listName, combinationArea);
+            } else {
+              alert(`List "${listName}" is already added at the top level`);
+            }
+          }
+        });
+
+        // Find appropriate drop target (list node body or combination area)
+        function findDropTarget(element) {
+          if (element.classList.contains("list-node-body")) {
+            return element;
+          } else if (element.classList.contains("combination-area")) {
+            return element;
+          } else if (element.closest(".list-node-body")) {
+            return element.closest(".list-node-body");
+          }
+          return null;
+        }
+
+        // Handle dropping a list node
+        function handleListDrop(listName, target) {
+          if (target.classList.contains("list-node-body")) {
+            // If there are already lists inside this node, make it a parallel combination
+            // unless it's already nested with more than one level
+            const existingNodes = target.querySelectorAll(
+              ":scope > .list-node"
+            );
+
+            if (existingNodes.length > 0 && !hasNestedLists(target)) {
+              // Make it a parallel combination
+              const parentNode = target.closest(".list-node");
+              if (parentNode) {
+                parentNode.classList.add("parallel");
+                parentNode.querySelector(".list-node-type").textContent =
+                  "Parallel";
+                parentNode
+                  .querySelector(".list-node-type")
+                  .classList.add("parallel");
+              }
+            }
+
+            createListNode(listName, target);
+          } else {
+            createListNode(listName, combinationArea);
+          }
+        }
+
+        // Check if the target already has nested lists
+        function hasNestedLists(target) {
+          return target.querySelector(".list-node .list-node") !== null;
+        }
+
+        // Create a list node in the combination area
+        function createListNode(listName, container) {
+          // Skip if the list doesn't exist
+          if (!lists[listName]) return;
+
+          // Create the node element
+          const nodeElement = document.createElement("div");
+          nodeElement.className = "list-node";
+          nodeElement.setAttribute("data-list-name", listName);
+
+          nodeElement.innerHTML = `
+      <div class="list-node-header">
+        <span>${listName}</span>
+        <span class="list-node-type">Nested</span>
+      </div>
+      <div class="list-node-body" data-parent="${listName}"></div>
+    `;
+
+          // Add drag and drop for the node body
+          const nodeBody = nodeElement.querySelector(".list-node-body");
+          nodeBody.addEventListener("dragover", function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            this.classList.add("drag-over");
+          });
+
+          nodeBody.addEventListener("dragleave", function (e) {
+            this.classList.remove("drag-over");
+          });
+
+          nodeBody.addEventListener("drop", function (e) {
+            e.preventDefault();
+            this.classList.remove("drag-over");
+
+            const droppedListName = e.dataTransfer.getData("text/plain");
+
+            // Prevent adding the same list twice at this level
+            const existingList = this.querySelector(
+              `:scope > .list-node[data-list-name="${droppedListName}"]`
+            );
+            if (existingList) {
+              alert(`List "${droppedListName}" is already added at this level`);
+              return;
+            }
+
+            handleListDrop(droppedListName, this);
+          });
+
+          container.appendChild(nodeElement);
+        }
+
+        // Generate output based on the combination structure and template
+        function generateOutput() {
+          const template = templateInput.value.trim();
+          if (!template) {
+            alert("Please enter a template with {listName} placeholders");
+            return;
+          }
+
+          // Process the combination structure
+          let outputs = [];
+          try {
+            outputs = generateOutputsFromCombination(template);
+          } catch (error) {
+            alert("Error: " + error.message);
+            return;
+          }
+
+          // Display the output
+          const outputType = getSelectedOutputType();
+          if (outputType === "text") {
+            outputArea.textContent = outputs.join("\n");
+          } else {
+            outputArea.innerHTML = "";
+            const ul = document.createElement("ul");
+            outputs.forEach((output) => {
+              const li = document.createElement("li");
+              li.textContent = output;
+              ul.appendChild(li);
+            });
+            outputArea.appendChild(ul);
+          }
+        }
+
+        // Get the selected output type
+        function getSelectedOutputType() {
+          for (const radio of outputTypeRadios) {
+            if (radio.checked) {
+              return radio.value;
+            }
+          }
+          return "text";
+        }
+
+        // Generate outputs from the combination structure
+        function generateOutputsFromCombination(template) {
+          // Identify top-level lists and nested lists
+          const topLevelNodes = combinationArea.querySelectorAll(
+            ":scope > .list-node"
+          );
+
+          // No lists, return template as is
+          if (topLevelNodes.length === 0) {
+            return [template];
+          }
+
+          // Collect all lists information
+          const allLists = [];
+          const nestedStructure = {};
+
+          // Extract list information
+          topLevelNodes.forEach((node) => {
+            const listName = node.getAttribute("data-list-name");
+            const isParallel = node.classList.contains("parallel");
+            const children = node
+              .querySelector(".list-node-body")
+              .querySelectorAll(":scope > .list-node");
+
+            allLists.push({
+              name: listName,
+              isParallel: isParallel,
+              values: lists[listName] || [],
+              hasChildren: children.length > 0,
+            });
+
+            // Store nested structure
+            if (children.length > 0) {
+              nestedStructure[listName] = [];
+              children.forEach((child) => {
+                const childName = child.getAttribute("data-list-name");
+                const childIsParallel = child.classList.contains("parallel");
+                nestedStructure[listName].push({
+                  name: childName,
+                  isParallel: childIsParallel,
+                  values: lists[childName] || [],
+                });
+              });
+            }
+          });
+
+          // Identify which lists are at the same level (side by side)
+          const topLevelListNames = allLists.map((list) => list.name);
+
+          // Generate all possible combinations
+          return generateAllCombinations(
+            template,
+            topLevelListNames,
+            nestedStructure
+          );
+        }
+
+        // Generate all possible combinations
+        function generateAllCombinations(template, listNames, nestedStructure) {
+          // Base case: no lists to process
+          if (listNames.length === 0) {
+            return [template];
+          }
+
+          let results = [template];
+
+          // Process each list
+          for (const listName of listNames) {
+            const listValues = lists[listName] || [];
+            let newResults = [];
+
+            // For each current result
+            for (const currentTemplate of results) {
+              // For each value in the list
+              for (const value of listValues) {
+                // Replace the placeholder with the value
+                let newTemplate = currentTemplate.replace(
+                  new RegExp(`\\{${listName}\\}`, "gi"),
+                  value
+                );
+
+                // Process nested lists if any
+                if (nestedStructure[listName]) {
+                  const nestedListNames = nestedStructure[listName].map(
+                    (list) => list.name
+                  );
+                  const nestedResults = generateAllCombinations(
+                    newTemplate,
+                    nestedListNames,
+                    nestedStructure
+                  );
+                  newResults.push(...nestedResults);
+                } else {
+                  newResults.push(newTemplate);
+                }
+              }
+            }
+
+            results = newResults;
+          }
+
+          return results;
+        }
+      });
+    </script>
+  </body>
+</html>

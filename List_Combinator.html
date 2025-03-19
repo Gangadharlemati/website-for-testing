@@ -534,31 +534,21 @@
 
         // Handle dropping a list node
         function handleListDrop(listName, target) {
-          if (target.classList.contains("list-node-body")) {
-            // If there are already lists inside this node, make it a parallel combination
-            // unless it's already nested with more than one level
-            const existingNodes = target.querySelectorAll(
-              ":scope > .list-node"
-            );
+  // Check if we're dropping into the combination area or a node body
+  if (target === combinationArea || target.classList.contains("list-node-body")) {
+    const container = target === combinationArea ? target : target;
+    
+    // Check for existing instance at this level
+    const existing = container.querySelector(`:scope > .list-node[data-list-name="${listName}"]`);
+    if (existing) {
+      alert(`List "${listName}" already exists at this level`);
+      return;
+    }
 
-            if (existingNodes.length > 0 && !hasNestedLists(target)) {
-              // Make it a parallel combination
-              const parentNode = target.closest(".list-node");
-              if (parentNode) {
-                parentNode.classList.add("parallel");
-                parentNode.querySelector(".list-node-type").textContent =
-                  "Parallel";
-                parentNode
-                  .querySelector(".list-node-type")
-                  .classList.add("parallel");
-              }
-            }
-
-            createListNode(listName, target);
-          } else {
-            createListNode(listName, combinationArea);
-          }
-        }
+    createListNode(listName, container);
+    updateNodeTypes(container);
+  }
+}
 
         // Check if the target already has nested lists
         function hasNestedLists(target) {
@@ -570,21 +560,30 @@
           // Skip if the list doesn't exist
           if (!lists[listName]) return;
 
-          // Create the node element
-          const nodeElement = document.createElement("div");
-          nodeElement.className = "list-node";
-          nodeElement.setAttribute("data-list-name", listName);
+    const nodeElement = document.createElement("div");
+    nodeElement.className = "list-node";
+    nodeElement.setAttribute("data-list-name", listName);
 
-          nodeElement.innerHTML = `
-      <div class="list-node-header">
-        <span>${listName}</span>
-        <span class="list-node-type">Nested</span>
-      </div>
-      <div class="list-node-body" data-parent="${listName}"></div>
-    `;
+// Determine if this is a parallel group (multiple top-level or siblings)
+const isParallelGroup = container !== combinationArea ? 
+  container.parentElement.classList.contains("parallel") :
+  combinationArea.children.length > 0;
 
-          // Add drag and drop for the node body
-          const nodeBody = nodeElement.querySelector(".list-node-body");
+nodeElement.innerHTML = `
+  <div class="list-node-header">
+    <span>${listName}</span>
+    <span class="list-node-type">${isParallelGroup ? 'Parallel' : 'Single'}</span>
+  </div>
+  <div class="list-node-body" data-parent="${listName}"></div>
+`;
+
+// Update sibling nodes to show parallel when multiple
+updateNodeTypes(container);
+
+// Add drag and drop handlers (keep existing code)
+const nodeBody = nodeElement.querySelector(".list-node-body");
+          
+
           nodeBody.addEventListener("dragover", function (e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
@@ -648,6 +647,18 @@
             outputArea.appendChild(ul);
           }
         }
+// New helper function to update node types
+        function updateNodeTypes(container) {
+  const siblings = Array.from(container.children);
+  const isParallel = siblings.length > 1;
+
+  siblings.forEach(node => {
+    const typeBadge = node.querySelector(".list-node-type");
+    node.classList.toggle("parallel", isParallel);
+    typeBadge.textContent = isParallel ? "Parallel" : "Single";
+    typeBadge.classList.toggle("parallel", isParallel);
+  });
+}
 
         // Get the selected output type
         function getSelectedOutputType() {
@@ -717,51 +728,95 @@
         }
 
         // Generate all possible combinations
-        function generateAllCombinations(template, listNames, nestedStructure) {
-          // Base case: no lists to process
-          if (listNames.length === 0) {
-            return [template];
-          }
+// Modified generateAllCombinations function to handle nested lists properly
+function generateAllCombinations(template, listNames, nestedStructure) {
+  function processLevel(currentNames, currentTemplate) {
+    if (currentNames.length === 0) return [currentTemplate];
 
-          let results = [template];
+    // Group consecutive parallel lists
+    const groups = [];
+    let currentGroup = [];
 
-          // Process each list
-          for (const listName of listNames) {
-            const listValues = lists[listName] || [];
-            let newResults = [];
-
-            // For each current result
-            for (const currentTemplate of results) {
-              // For each value in the list
-              for (const value of listValues) {
-                // Replace the placeholder with the value
-                let newTemplate = currentTemplate.replace(
-                  new RegExp(`\\{${listName}\\}`, "gi"),
-                  value
-                );
-
-                // Process nested lists if any
-                if (nestedStructure[listName]) {
-                  const nestedListNames = nestedStructure[listName].map(
-                    (list) => list.name
-                  );
-                  const nestedResults = generateAllCombinations(
-                    newTemplate,
-                    nestedListNames,
-                    nestedStructure
-                  );
-                  newResults.push(...nestedResults);
-                } else {
-                  newResults.push(newTemplate);
-                }
-              }
-            }
-
-            results = newResults;
-          }
-
-          return results;
+    currentNames.forEach(name => {
+      const node = document.querySelector(`[data-list-name="${name}"]`);
+      const isParallel = node ? node.classList.contains("parallel") : false;
+      
+      if (isParallel) {
+        if (currentGroup.length > 0 && !currentGroup.every(n => document.querySelector(`[data-list-name="${n}"]`).classList.contains("parallel"))) {
+          groups.push(currentGroup);
+          currentGroup = [];
         }
+        currentGroup.push(name);
+      } else {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+          currentGroup = [];
+        }
+        groups.push([name]);
+      }
+    });
+
+    if (currentGroup.length > 0) groups.push(currentGroup);
+
+    let results = [currentTemplate];
+
+    groups.forEach(group => {
+      const newResults = [];
+      
+      if (group.length === 1) {
+        // Sequential processing
+        const name = group[0];
+        lists[name].forEach(value => {
+          results.forEach(tpl => {
+            let newTpl = tpl.replace(new RegExp(`\\{${name}\\}`, "gi"), value);
+            
+            // Process nested lists
+            if (nestedStructure[name]) {
+              const nestedNames = nestedStructure[name].map(child => child.name);
+              const nestedCombos = processLevel(nestedNames, newTpl);
+              newResults.push(...nestedCombos);
+            } else {
+              newResults.push(newTpl);
+            }
+          });
+        });
+      } else {
+        // Parallel processing
+        const listsToZip = group.map(name => lists[name]);
+        const lengths = listsToZip.map(list => list.length);
+        
+        if (new Set(lengths).size > 1) {
+          throw new Error(`Parallel lists ${group.join(", ")} must have equal lengths`);
+        }
+
+        for (let i = 0; i < listsToZip[0].length; i++) {
+          results.forEach(tpl => {
+            let newTpl = tpl;
+            group.forEach((name, idx) => {
+              newTpl = newTpl.replace(new RegExp(`\\{${name}\\}`, "gi"), listsToZip[idx][i]);
+            });
+            
+            // Process nested lists for each parallel list
+            group.forEach(name => {
+              if (nestedStructure[name]) {
+                const nestedNames = nestedStructure[name].map(child => child.name);
+                const nestedCombos = processLevel(nestedNames, newTpl);
+                newResults.push(...nestedCombos);
+              } else {
+                newResults.push(newTpl);
+              }
+            });
+          });
+        }
+      }
+      results = newResults.length > 0 ? newResults : results;
+    });
+
+    return results;
+  }
+
+  return processLevel(listNames, template);
+}
       });
     </script>
   </body>

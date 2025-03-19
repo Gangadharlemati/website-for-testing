@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JSON/HTML to XML Converter</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .container {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .input-section,
+      .output-section {
+        flex: 1;
+      }
+      textarea {
+        width: 100%;
+        height: 300px;
+        font-family: monospace;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        margin-bottom: 10px;
+      }
+      .controls {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+      }
+      button {
+        background-color: #4caf50;
+        border: none;
+        color: white;
+        padding: 10px 15px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+      select,
+      input {
+        padding: 8px;
+        margin-right: 10px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+      }
+      .options {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .error {
+        color: red;
+        margin-top: 10px;
+      }
+      .example-btn {
+        background-color: #2196f3;
+      }
+      label {
+        margin-right: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>JSON/HTML to XML Converter</h1>
+
+    <div class="controls">
+      <div>
+        <label for="input-type">Input Type:</label>
+        <select id="input-type">
+          <option value="json">JSON</option>
+          <option value="html">HTML</option>
+        </select>
+
+        <label for="tag-style">Tag Style:</label>
+        <select id="tag-style">
+          <option value="standard">Standard (e.g., &lt;div&gt;)</option>
+          <option value="numbered">Numbered (e.g., &lt;div1&gt;)</option>
+          <option value="numbered-prefix">
+            Numbered Prefix (e.g., &lt;1:div&gt;)
+          </option>
+        </select>
+
+        <label for="root-element">Root Element Name:</label>
+        <input type="text" id="root-element" value="root" placeholder="root" />
+      </div>
+
+      <div class="options" id="html-options">
+        <div>
+          <input type="checkbox" id="preserve-attributes" checked />
+          <label for="preserve-attributes">Preserve HTML Attributes</label>
+        </div>
+
+        <div>
+          <input type="checkbox" id="preserve-text" checked />
+          <label for="preserve-text">Preserve Text Content</label>
+        </div>
+
+        <div>
+          <input type="checkbox" id="handle-comments" checked />
+          <label for="handle-comments">Preserve Comments</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="input-section">
+        <h2>Input</h2>
+        <textarea
+          id="input-data"
+          placeholder="Paste your JSON or HTML here..."
+        ></textarea>
+        <button id="convert-btn">Convert to XML</button>
+        <button class="example-btn" id="example-json">Load JSON Example</button>
+        <button class="example-btn" id="example-html">Load HTML Example</button>
+        <div class="error" id="error-message"></div>
+      </div>
+
+      <div class="output-section">
+        <h2>Output XML</h2>
+        <textarea id="output-xml" readonly></textarea>
+        <button id="copy-btn">Copy XML</button>
+        <button id="download-btn">Download XML</button>
+      </div>
+    </div>
+
+    <script>
+      // Example data for quick testing
+      const exampleJSON = {
+        person: {
+          name: "John Doe",
+          age: 30,
+          address: {
+            street: "123 Main St",
+            city: "Anytown",
+            zip: "12345",
+          },
+          contacts: [
+            { type: "email", value: "john@example.com" },
+            { type: "phone", value: "555-1234" },
+          ],
+        },
+      };
+
+      const exampleHTML = `<div class="container">
+    <header id="main-header">
+        <h1>Sample Page</h1>
+        <nav>
+            <ul>
+                <li><a href="#home">Home</a></li>
+                <li><a href="#about">About</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div class="content">
+        <div class="article">
+            <h2>Article Title</h2>
+            <p>This is a paragraph with <strong>bold text</strong> and <em>italic text</em>.</p>
+            <!-- This is a comment -->
+        </div>
+        <div class="sidebar">
+            <h3>Related Links</h3>
+            <ul>
+                <li>Link 1</li>
+                <li>Link 2</li>
+            </ul>
+        </div>
+    </div>
+</div>`;
+
+      document.addEventListener("DOMContentLoaded", () => {
+        // Get elements
+        const inputType = document.getElementById("input-type");
+        const tagStyle = document.getElementById("tag-style");
+        const rootElement = document.getElementById("root-element");
+        const inputData = document.getElementById("input-data");
+        const outputXml = document.getElementById("output-xml");
+        const convertBtn = document.getElementById("convert-btn");
+        const copyBtn = document.getElementById("copy-btn");
+        const downloadBtn = document.getElementById("download-btn");
+        const errorMessage = document.getElementById("error-message");
+        const preserveAttributes = document.getElementById(
+          "preserve-attributes"
+        );
+        const preserveText = document.getElementById("preserve-text");
+        const handleComments = document.getElementById("handle-comments");
+        const htmlOptions = document.getElementById("html-options");
+        const exampleJsonBtn = document.getElementById("example-json");
+        const exampleHtmlBtn = document.getElementById("example-html");
+
+        // Toggle HTML options based on input type
+        inputType.addEventListener("change", () => {
+          htmlOptions.style.display =
+            inputType.value === "html" ? "flex" : "none";
+        });
+
+        // Initialize display
+        htmlOptions.style.display =
+          inputType.value === "html" ? "flex" : "none";
+
+        // Load example data
+        exampleJsonBtn.addEventListener("click", () => {
+          inputType.value = "json";
+          htmlOptions.style.display = "none";
+          inputData.value = JSON.stringify(exampleJSON, null, 2);
+        });
+
+        exampleHtmlBtn.addEventListener("click", () => {
+          inputType.value = "html";
+          htmlOptions.style.display = "flex";
+          inputData.value = exampleHTML;
+        });
+
+        // Convert button event
+        convertBtn.addEventListener("click", () => {
+          errorMessage.textContent = "";
+          try {
+            const type = inputType.value;
+            const style = tagStyle.value;
+            const rootName = rootElement.value || "root";
+            const content = inputData.value.trim();
+
+            if (!content) {
+              throw new Error("Please enter input data.");
+            }
+
+            let xmlResult;
+            if (type === "json") {
+              const jsonData = JSON.parse(content);
+              xmlResult = convertJsonToXml(jsonData, style, rootName);
+            } else {
+              // HTML
+              const options = {
+                preserveAttributes: preserveAttributes.checked,
+                preserveText: preserveText.checked,
+                handleComments: handleComments.checked,
+              };
+              xmlResult = convertHtmlToXml(content, style, rootName, options);
+            }
+
+            outputXml.value = xmlResult;
+          } catch (error) {
+            errorMessage.textContent = `Error: ${error.message}`;
+          }
+        });
+
+        // Copy XML to clipboard
+        copyBtn.addEventListener("click", () => {
+          outputXml.select();
+          document.execCommand("copy");
+          alert("XML copied to clipboard!");
+        });
+
+        // Download XML file
+        downloadBtn.addEventListener("click", () => {
+          const xmlContent = outputXml.value;
+          if (!xmlContent) {
+            alert("No XML to download");
+            return;
+          }
+
+          const blob = new Blob([xmlContent], { type: "application/xml" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "converted.xml";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+
+        /**
+         * Convert JSON to XML
+         */
+        function convertJsonToXml(json, style, rootName) {
+          // XML declaration
+          let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+
+          // Process the JSON object
+          xml += processJsonNode(json, rootName, style, 0);
+
+          return xml;
+        }
+
+        /**
+         * Process a JSON node recursively
+         */
+        function processJsonNode(node, nodeName, style, depth, index = 0) {
+          const indent = "  ".repeat(depth);
+          let result = "";
+
+          // Generate tag name based on style
+          const tagName = formatTagName(nodeName, style, index);
+
+          if (node === null) {
+            // Handle null values
+            result += `${indent}<${tagName} nil="true" />\n`;
+          } else if (typeof node === "object") {
+            if (Array.isArray(node)) {
+              // Handle arrays
+              if (node.length === 0) {
+                result += `${indent}<${tagName} />\n`;
+              } else {
+                for (let i = 0; i < node.length; i++) {
+                  result += processJsonNode(node[i], nodeName, style, depth, i);
+                }
+              }
+            } else {
+              // Handle objects
+              const keys = Object.keys(node);
+              if (keys.length === 0) {
+                result += `${indent}<${tagName} />\n`;
+              } else {
+                result += `${indent}<${tagName}>\n`;
+                for (let i = 0; i < keys.length; i++) {
+                  const key = keys[i];
+                  result += processJsonNode(node[key], key, style, depth + 1);
+                }
+                result += `${indent}</${tagName}>\n`;
+              }
+            }
+          } else {
+            // Handle primitive values
+            const value = escapeXml(String(node));
+            result += `${indent}<${tagName}>${value}</${tagName}>\n`;
+          }
+
+          return result;
+        }
+
+        /**
+         * Convert HTML to XML
+         */
+        function convertHtmlToXml(html, style, rootName, options) {
+          // XML declaration
+          let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+
+          try {
+            // Parse HTML using DOMParser
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            // Start with root element
+            xml += `<${rootName}>\n`;
+
+            // Process the body (or the first element if parsing failed)
+            const body = doc.body;
+            if (body) {
+              for (let i = 0; i < body.childNodes.length; i++) {
+                xml += processHtmlNode(body.childNodes[i], style, options, 1);
+              }
+            }
+
+            xml += `</${rootName}>\n`;
+
+            return xml;
+          } catch (error) {
+            throw new Error(`Error parsing HTML: ${error.message}`);
+          }
+        }
+
+        /**
+         * Process an HTML node recursively
+         */
+        function processHtmlNode(
+          node,
+          style,
+          options,
+          depth,
+          siblingIndex = 0
+        ) {
+          const indent = "  ".repeat(depth);
+          let result = "";
+
+          // Handle different node types
+          switch (node.nodeType) {
+            case Node.ELEMENT_NODE:
+              // Generate tag name based on style
+              const tagName = formatTagName(
+                node.nodeName.toLowerCase(),
+                style,
+                siblingIndex
+              );
+
+              // Start tag with attributes if needed
+              if (options.preserveAttributes && node.attributes.length > 0) {
+                result += `${indent}<${tagName}`;
+                for (let i = 0; i < node.attributes.length; i++) {
+                  const attr = node.attributes[i];
+                  result += ` ${attr.name}="${escapeXml(attr.value)}"`;
+                }
+                result += ">\n";
+              } else {
+                result += `${indent}<${tagName}>\n`;
+              }
+
+              // Process child nodes
+              if (node.childNodes.length > 0) {
+                // Count siblings of each type for indexing
+                const elementCounts = {};
+                for (let i = 0; i < node.childNodes.length; i++) {
+                  const child = node.childNodes[i];
+                  if (child.nodeType === Node.ELEMENT_NODE) {
+                    const childName = child.nodeName.toLowerCase();
+                    elementCounts[childName] =
+                      (elementCounts[childName] || 0) + 1;
+                  }
+                }
+
+                // Process each child
+                for (let i = 0; i < node.childNodes.length; i++) {
+                  const child = node.childNodes[i];
+                  if (child.nodeType === Node.ELEMENT_NODE) {
+                    const childName = child.nodeName.toLowerCase();
+                    const currentCount = elementCounts[childName] > 1 ? i : 0;
+                    result += processHtmlNode(
+                      child,
+                      style,
+                      options,
+                      depth + 1,
+                      currentCount
+                    );
+                  } else {
+                    result += processHtmlNode(child, style, options, depth + 1);
+                  }
+                }
+              }
+
+              // Close tag
+              result += `${indent}</${tagName}>\n`;
+              break;
+
+            case Node.TEXT_NODE:
+              // Handle text content if enabled and non-empty
+              if (options.preserveText && node.textContent.trim()) {
+                result += `${indent}<text>${escapeXml(
+                  node.textContent.trim()
+                )}</text>\n`;
+              }
+              break;
+
+            case Node.COMMENT_NODE:
+              // Handle comments if enabled
+              if (options.handleComments) {
+                result += `${indent}<!-- ${escapeXml(node.textContent)} -->\n`;
+              }
+              break;
+          }
+
+          return result;
+        }
+
+        /**
+         * Format tag name based on selected style
+         */
+        function formatTagName(name, style, index) {
+          switch (style) {
+            case "numbered":
+              return `${name}${index}`;
+            case "numbered-prefix":
+              return `${index}:${name}`;
+            case "standard":
+            default:
+              return name;
+          }
+        }
+
+        /**
+         * Escape XML special characters
+         */
+        function escapeXml(str) {
+          return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
+        }
+      });
+    </script>
+  </body>
+</html>

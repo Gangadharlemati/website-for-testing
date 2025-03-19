@@ -534,21 +534,26 @@
 
         // Handle dropping a list node
         function handleListDrop(listName, target) {
-  // Check if we're dropping into the combination area or a node body
-  if (target === combinationArea || target.classList.contains("list-node-body")) {
-    const container = target === combinationArea ? target : target;
-    
-    // Check for existing instance at this level
-    const existing = container.querySelector(`:scope > .list-node[data-list-name="${listName}"]`);
-    if (existing) {
-      alert(`List "${listName}" already exists at this level`);
-      return;
-    }
+          // Check if we're dropping into the combination area or a node body
+          if (
+            target === combinationArea ||
+            target.classList.contains("list-node-body")
+          ) {
+            const container = target === combinationArea ? target : target;
 
-    createListNode(listName, container);
-    updateNodeTypes(container);
-  }
-}
+            // Check for existing instance at this level
+            const existing = container.querySelector(
+              `:scope > .list-node[data-list-name="${listName}"]`
+            );
+            if (existing) {
+              alert(`List "${listName}" already exists at this level`);
+              return;
+            }
+
+            createListNode(listName, container);
+            updateNodeTypes(container);
+          }
+        }
 
         // Check if the target already has nested lists
         function hasNestedLists(target) {
@@ -560,29 +565,31 @@
           // Skip if the list doesn't exist
           if (!lists[listName]) return;
 
-    const nodeElement = document.createElement("div");
-    nodeElement.className = "list-node";
-    nodeElement.setAttribute("data-list-name", listName);
+          const nodeElement = document.createElement("div");
+          nodeElement.className = "list-node";
+          nodeElement.setAttribute("data-list-name", listName);
 
-// Determine if this is a parallel group (multiple top-level or siblings)
-const isParallelGroup = container !== combinationArea ? 
-  container.parentElement.classList.contains("parallel") :
-  combinationArea.children.length > 0;
+          // Determine if this is a parallel group (multiple top-level or siblings)
+          const isParallelGroup =
+            container !== combinationArea
+              ? container.parentElement.classList.contains("parallel")
+              : combinationArea.children.length > 0;
 
-nodeElement.innerHTML = `
+          nodeElement.innerHTML = `
   <div class="list-node-header">
     <span>${listName}</span>
-    <span class="list-node-type">${isParallelGroup ? 'Parallel' : 'Single'}</span>
+    <span class="list-node-type">${
+      isParallelGroup ? "Parallel" : "Single"
+    }</span>
   </div>
   <div class="list-node-body" data-parent="${listName}"></div>
 `;
 
-// Update sibling nodes to show parallel when multiple
-updateNodeTypes(container);
+          // Update sibling nodes to show parallel when multiple
+          updateNodeTypes(container);
 
-// Add drag and drop handlers (keep existing code)
-const nodeBody = nodeElement.querySelector(".list-node-body");
-          
+          // Add drag and drop handlers (keep existing code)
+          const nodeBody = nodeElement.querySelector(".list-node-body");
 
           nodeBody.addEventListener("dragover", function (e) {
             e.preventDefault();
@@ -647,18 +654,18 @@ const nodeBody = nodeElement.querySelector(".list-node-body");
             outputArea.appendChild(ul);
           }
         }
-// New helper function to update node types
+        // New helper function to update node types
         function updateNodeTypes(container) {
-  const siblings = Array.from(container.children);
-  const isParallel = siblings.length > 1;
+          const siblings = Array.from(container.children);
+          const isParallel = siblings.length > 1;
 
-  siblings.forEach(node => {
-    const typeBadge = node.querySelector(".list-node-type");
-    node.classList.toggle("parallel", isParallel);
-    typeBadge.textContent = isParallel ? "Parallel" : "Single";
-    typeBadge.classList.toggle("parallel", isParallel);
-  });
-}
+          siblings.forEach((node) => {
+            const typeBadge = node.querySelector(".list-node-type");
+            node.classList.toggle("parallel", isParallel);
+            typeBadge.textContent = isParallel ? "Parallel" : "Single";
+            typeBadge.classList.toggle("parallel", isParallel);
+          });
+        }
 
         // Get the selected output type
         function getSelectedOutputType() {
@@ -728,95 +735,159 @@ const nodeBody = nodeElement.querySelector(".list-node-body");
         }
 
         // Generate all possible combinations
-// Modified generateAllCombinations function to handle nested lists properly
-function generateAllCombinations(template, listNames, nestedStructure) {
-  function processLevel(currentNames, currentTemplate) {
-    if (currentNames.length === 0) return [currentTemplate];
+        // Modified generateAllCombinations function to handle nested lists properly
+        // Replace your current generateOutputsFromCombination function with this:
+        function generateOutputsFromCombination(template) {
+          // Get top-level list nodes from combinationArea
+          const topLevelNodes = combinationArea.querySelectorAll(
+            ":scope > .list-node"
+          );
+          const topLists = [];
+          const nestedStructure = {};
 
-    // Group consecutive parallel lists
-    const groups = [];
-    let currentGroup = [];
+          topLevelNodes.forEach((node) => {
+            const listName = node.getAttribute("data-list-name");
+            const isParallel = node.classList.contains("parallel");
+            topLists.push({
+              name: listName,
+              isParallel: isParallel,
+              values: lists[listName] || [],
+            });
 
-    currentNames.forEach(name => {
-      const node = document.querySelector(`[data-list-name="${name}"]`);
-      const isParallel = node ? node.classList.contains("parallel") : false;
-      
-      if (isParallel) {
-        if (currentGroup.length > 0 && !currentGroup.every(n => document.querySelector(`[data-list-name="${n}"]`).classList.contains("parallel"))) {
-          groups.push(currentGroup);
-          currentGroup = [];
-        }
-        currentGroup.push(name);
-      } else {
-        if (currentGroup.length > 0) {
-          groups.push(currentGroup);
-          currentGroup = [];
-        }
-        groups.push([name]);
-      }
-    });
-
-    if (currentGroup.length > 0) groups.push(currentGroup);
-
-    let results = [currentTemplate];
-
-    groups.forEach(group => {
-      const newResults = [];
-      
-      if (group.length === 1) {
-        // Sequential processing
-        const name = group[0];
-        lists[name].forEach(value => {
-          results.forEach(tpl => {
-            let newTpl = tpl.replace(new RegExp(`\\{${name}\\}`, "gi"), value);
-            
-            // Process nested lists
-            if (nestedStructure[name]) {
-              const nestedNames = nestedStructure[name].map(child => child.name);
-              const nestedCombos = processLevel(nestedNames, newTpl);
-              newResults.push(...nestedCombos);
-            } else {
-              newResults.push(newTpl);
+            const children = node
+              .querySelector(".list-node-body")
+              .querySelectorAll(":scope > .list-node");
+            if (children.length > 0) {
+              nestedStructure[listName] = [];
+              children.forEach((child) => {
+                const childName = child.getAttribute("data-list-name");
+                const childIsParallel = child.classList.contains("parallel");
+                nestedStructure[listName].push({
+                  name: childName,
+                  isParallel: childIsParallel,
+                  values: lists[childName] || [],
+                });
+              });
             }
           });
-        });
-      } else {
-        // Parallel processing
-        const listsToZip = group.map(name => lists[name]);
-        const lengths = listsToZip.map(list => list.length);
-        
-        if (new Set(lengths).size > 1) {
-          throw new Error(`Parallel lists ${group.join(", ")} must have equal lengths`);
+
+          // Generate combinations from the top-level lists and nested structure
+          return generateAllCombinationsFromObjects(
+            template,
+            topLists,
+            nestedStructure
+          );
         }
 
-        for (let i = 0; i < listsToZip[0].length; i++) {
-          results.forEach(tpl => {
-            let newTpl = tpl;
-            group.forEach((name, idx) => {
-              newTpl = newTpl.replace(new RegExp(`\\{${name}\\}`, "gi"), listsToZip[idx][i]);
-            });
-            
-            // Process nested lists for each parallel list
-            group.forEach(name => {
-              if (nestedStructure[name]) {
-                const nestedNames = nestedStructure[name].map(child => child.name);
-                const nestedCombos = processLevel(nestedNames, newTpl);
-                newResults.push(...nestedCombos);
+        // New combination generation function that works on list objects:
+        function generateAllCombinationsFromObjects(
+          template,
+          listObjects,
+          nestedStructure
+        ) {
+          function processLevel(objects, currentTemplate) {
+            if (objects.length === 0) return [currentTemplate];
+
+            // Group consecutive lists based on their "parallel" flag
+            const groups = [];
+            let currentGroup = [];
+
+            objects.forEach((obj) => {
+              if (obj.isParallel) {
+                if (
+                  currentGroup.length > 0 &&
+                  !currentGroup.every((o) => o.isParallel)
+                ) {
+                  groups.push(currentGroup);
+                  currentGroup = [];
+                }
+                currentGroup.push(obj);
               } else {
-                newResults.push(newTpl);
+                if (currentGroup.length > 0) {
+                  groups.push(currentGroup);
+                  currentGroup = [];
+                }
+                groups.push([obj]);
               }
             });
-          });
+            if (currentGroup.length > 0) groups.push(currentGroup);
+
+            let results = [currentTemplate];
+
+            groups.forEach((group) => {
+              const newResults = [];
+
+              if (group.length === 1) {
+                // Sequential processing: loop each value of the list
+                const obj = group[0];
+                obj.values.forEach((value) => {
+                  results.forEach((tpl) => {
+                    let newTpl = tpl.replace(
+                      new RegExp(`\\{${obj.name}\\}`, "gi"),
+                      value
+                    );
+                    // Process nested children if any
+                    if (nestedStructure[obj.name]) {
+                      const nestedObjs = nestedStructure[obj.name];
+                      const nestedCombos = processLevel(nestedObjs, newTpl);
+                      newResults.push(...nestedCombos);
+                    } else {
+                      newResults.push(newTpl);
+                    }
+                  });
+                });
+              } else {
+                // Parallel processing: the lists in the group are "zipped" together.
+                // They must have equal lengths.
+                const lengths = group.map((obj) => obj.values.length);
+                if (new Set(lengths).size > 1) {
+                  throw new Error(
+                    `Parallel lists ${group
+                      .map((o) => o.name)
+                      .join(", ")} must have equal lengths`
+                  );
+                }
+                for (let i = 0; i < group[0].values.length; i++) {
+                  results.forEach((tpl) => {
+                    let newTpl = tpl;
+                    // Replace placeholders for each list in the group with its i-th value.
+                    group.forEach((obj) => {
+                      newTpl = newTpl.replace(
+                        new RegExp(`\\{${obj.name}\\}`, "gi"),
+                        obj.values[i]
+                      );
+                    });
+                    // Gather all nested children from every list in the parallel group.
+                    let nestedObjs = [];
+                    group.forEach((obj) => {
+                      if (nestedStructure[obj.name]) {
+                        nestedObjs.push(...nestedStructure[obj.name]);
+                      }
+                    });
+                    // Remove duplicates by name (if any)
+                    nestedObjs = nestedObjs.reduce((acc, cur) => {
+                      if (!acc.find((o) => o.name === cur.name)) acc.push(cur);
+                      return acc;
+                    }, []);
+
+                    if (nestedObjs.length > 0) {
+                      const nestedCombos = processLevel(nestedObjs, newTpl);
+                      newResults.push(...nestedCombos);
+                    } else {
+                      newResults.push(newTpl);
+                    }
+                  });
+                }
+              }
+
+              results = newResults;
+            });
+
+            return results;
+          }
+
+          return processLevel(listObjects, template);
         }
-      }
-      results = newResults.length > 0 ? newResults : results;
-    });
-
-    return results;
-  }
-
-  return processLevel(listNames, template);
-}
       });
     </script>
   </body>

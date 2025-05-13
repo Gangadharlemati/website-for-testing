@@ -44,13 +44,19 @@
         margin-bottom: 10px;
       }
       .pdf-icon {
-        color: #ff5252;
+        color: #ff5252; /* Red for PDF */
       }
       .xml-icon {
-        color: #2196f3;
+        color: #2196f3; /* Blue for XML */
       }
       .html-icon {
-        color: #ff9800;
+        color: #ff9800; /* Orange for HTML */
+      }
+      .xlsx-icon {
+        color: #1d6f42; /* Green for XLSX (Excel-like) */
+      }
+      .csv-icon {
+        color: #777777; /* Neutral gray for CSV */
       }
       .file-name {
         font-weight: bold;
@@ -101,7 +107,7 @@
         background-color: #0b7dda;
       }
 
-       .links-table {
+      .links-table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 40px;
@@ -138,12 +144,7 @@
           <div class="file-icon pdf-icon">📄</div>
           <div class="file-name">Sample Report.pdf</div>
           <div class="file-description">Annual financial report (2024)</div>
-          <a
-            href="new_document.pdf"
-            download
-            class="download-btn"
-            >Download</a
-          >
+          <a href="new_document.pdf" download class="download-btn">Download</a>
         </div>
 
         <div class="file-card">
@@ -182,6 +183,26 @@
           <div class="file-description">Interactive report page</div>
           <a href="report_page.html" download class="download-btn">Download</a>
         </div>
+
+        <!-- XLSX File -->
+        <div class="file-card">
+          <div class="file-icon xlsx-icon">📊</div>
+          <!-- You can use other icons like 📈 or 🗒️ -->
+          <div class="file-name">Sales Data.xlsx</div>
+          <div class="file-description">Quarterly sales figures</div>
+          <a href="sales_data.xlsx" download class="download-btn">Download</a>
+        </div>
+
+        <!-- CSV File -->
+        <div class="file-card">
+          <div class="file-icon csv-icon">🗒️</div>
+          <!-- You can use other icons like 📜 or 🗃️ -->
+          <div class="file-name">Product Inventory.csv</div>
+          <div class="file-description">Current stock levels</div>
+          <a href="product_inventory.csv" download class="download-btn"
+            >Download</a
+          >
+        </div>
       </div>
 
       <div class="upload-section">
@@ -201,22 +222,37 @@
           >
         </p>
       </div>
-       <table class="links-table">
+      <table class="links-table">
         <tr>
           <th>Title</th>
           <th>Link</th>
         </tr>
         <tr>
           <td>link1</td>
-          <td><a href="https://gangadharlemati.github.io/website-for-testing/UMIN_Detail_Data.json">linkl</a></td>
+          <td>
+            <a
+              href="https://gangadharlemati.github.io/website-for-testing/UMIN_Detail_Data.json"
+              >linkl</a
+            >
+          </td>
         </tr>
         <tr>
           <td>link2</td>
-          <td><a href="https://gangadharlemati.github.io/website-for-testing/index1.html">link2</a></td>
+          <td>
+            <a
+              href="https://gangadharlemati.github.io/website-for-testing/index1.html"
+              >link2</a
+            >
+          </td>
         </tr>
         <tr>
           <td>link3</td>
-          <td><a href="https://gangadharlemati.github.io/website-for-testing/TCTRData.json">link3</a></td>
+          <td>
+            <a
+              href="https://gangadharlemati.github.io/website-for-testing/TCTRData.json"
+              >link3</a
+            >
+          </td>
         </tr>
       </table>
     </main>

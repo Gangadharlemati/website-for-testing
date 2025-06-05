@@ -58,6 +58,9 @@
       .csv-icon {
         color: #777777; /* Neutral gray for CSV */
       }
+      .gz-icon {
+        color: #8e44ad; /* Purple for GZ */
+      }
       .file-name {
         font-weight: bold;
         margin-bottom: 10px;
@@ -187,7 +190,6 @@
         <!-- XLSX File -->
         <div class="file-card">
           <div class="file-icon xlsx-icon">📊</div>
-          <!-- You can use other icons like 📈 or 🗒️ -->
           <div class="file-name">Sales Data.xlsx</div>
           <div class="file-description">Quarterly sales figures</div>
           <a href="pipeline_sample.xlsx" download class="download-btn">Download</a>
@@ -196,13 +198,24 @@
         <!-- CSV File -->
         <div class="file-card">
           <div class="file-icon csv-icon">🗒️</div>
-          <!-- You can use other icons like 📜 or 🗃️ -->
           <div class="file-name">Product Inventory.csv</div>
           <div class="file-description">Current stock levels</div>
           <a href="csv_sample.csv" download class="download-btn"
             >Download</a
           >
         </div>
+
+        <!-- GZ File - NEWLY ADDED -->
+        <div class="file-card">
+          <div class="file-icon gz-icon">🗜️</div>
+          <!-- You can use other icons like 📦 or 📚 -->
+          <div class="file-name">Server Logs.log.gz</div>
+          <div class="file-description">Compressed server activity logs</div>
+          <a href="server_logs.log.gz" download class="download-btn"
+            >Download</a
+          >
+        </div>
+
       </div>
 
       <div class="upload-section">

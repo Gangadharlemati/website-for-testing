@@ -1,0 +1,957 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Extractor & Visualizer</title>
+    <!-- SheetJS library for Excel export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --panel-bg-color: #ffffff;
+            --text-color: #212529;
+            --primary-color: #0d6efd;
+            --primary-hover-color: #0b5ed7;
+            --border-color: #dee2e6;
+            --subtle-border-color: #e9ecef;
+            --monospace-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            --sans-serif-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --key-color: #d63384;
+            --string-color: #198754;
+            --number-color: #0d6efd;
+            --boolean-color: #6f42c1;
+            --null-color: #6c757d;
+            --highlight-bg: #fff3cd;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: var(--sans-serif-font);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 { margin: 0 0 20px 0; color: #343a40; text-align: center; }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: -1px;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            background-color: transparent;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--primary-color);
+            border-radius: 6px 6px 0 0;
+            position: relative;
+            bottom: -1px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .tab-button.active {
+            background-color: var(--panel-bg-color);
+            border-color: var(--border-color);
+            color: var(--text-color);
+            border-bottom: 1px solid var(--panel-bg-color);
+        }
+        .tab-button:not(.active):hover {
+            background-color: #e9ecef;
+        }
+
+        .tab-content-container {
+            flex-grow: 1;
+            background-color: var(--panel-bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 0 8px 8px 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 25px;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-content {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+        }
+        .tab-content.active { display: flex; }
+
+        /* General Controls */
+        textarea {
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            box-sizing: border-box;
+            font-family: var(--monospace-font);
+            font-size: 0.9rem;
+            resize: none;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;
+            font-size: 0.95rem; font-weight: 500; transition: background-color 0.2s;
+            flex-shrink: 0; /* Prevent buttons from shrinking in flex containers */
+        }
+        button:hover { background-color: var(--primary-hover-color); }
+        button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .error-message { color: #dc3545; margin-top: 10px; font-weight: 500; }
+
+        /* Tab 1: Raw JSON */
+        #tab-raw { gap: 15px; }
+        #jsonInput { flex-grow: 1; }
+
+        /* Tab 2: Visualize */
+        #jsonTreeContainer {
+            border: 1px solid var(--subtle-border-color);
+            padding: 15px;
+            border-radius: 6px;
+            overflow: auto;
+            font-family: var(--monospace-font);
+            font-size: 0.9rem;
+            background-color: #fdfdfd;
+            flex-grow: 1;
+        }
+        .path-display-container {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #selectedPath {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-family: var(--monospace-font);
+            background-color: #e9ecef;
+        }
+
+        /* Tab 3: Extract */
+        .extraction-controls { display: flex; gap: 10px; margin-bottom: 20px; align-items: center;}
+        #extractionPath { flex-grow: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); font-family: var(--monospace-font); }
+        #extractedDataContainer { flex-grow: 1; overflow: auto; border: 1px solid var(--border-color); border-radius: 6px;}
+        #downloadOptions { display: none; margin-top: 15px; gap: 10px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 8px 12px; border: 1px solid var(--border-color); text-align: left; vertical-align: top; }
+        thead th { background-color: #f8f9fa; position: sticky; top: 0; z-index: 1; }
+        tbody tr:nth-child(even) { background-color: #f8f9fa; }
+
+        /* Original JSON Tree Styles (Unchanged) */
+        .json-node { margin-left: 1.5em; position: relative; }
+        .key-value-line { display: flex; align-items: center; min-height: 1.5em; }
+        .json-key, .json-index { color: var(--key-color); cursor: pointer; font-weight: bold; margin-right: 0.5ch; }
+        .json-key:hover, .json-index:hover { text-decoration: underline; text-decoration-color: var(--primary-color); }
+        .json-value.string { color: var(--string-color); }
+        .json-value.number { color: var(--number-color); }
+        .json-value.boolean { color: var(--boolean-color); }
+        .json-value.null { color: var(--null-color); font-style: italic; }
+        .toggler { cursor: pointer; margin-right: 0.5em; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; user-select: none; color: #505050;}
+        .toggler svg { width: 100%; height: 100%; }
+        .toggler-placeholder { display: inline-block; width: 16px; margin-right: 0.5em; }
+        .children-container { overflow: hidden; transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-in-out; max-height: 0; opacity: 0;}
+        .children-container.expanded.visible { opacity: 1; }
+        .selected-node > .key-value-line > .json-key,
+        .selected-node > .key-value-line > .json-index {
+            background-color: var(--highlight-bg); padding: 2px 4px; border-radius: 3px; color: #664d03;
+        }
+
+        /* --- Add this to your existing <style> block --- */
+
+#renderBtn {
+    /* These properties help keep the button size consistent */
+    min-width: 160px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* Space between text and icon */
+}
+
+/* Animation for the spinner icon */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.btn-spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* Style for the checkmark icon */
+.btn-checkmark {
+    color: #a5d6a7; /* A light green for success */
+}
+
+
+        .input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+#jsonStatus {
+    font-size: 0.9em;
+    font-weight: normal;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+#jsonStatus.processing {
+    color: #0d6efd;
+    background-color: #e7f1ff;
+}
+
+#jsonStatus.valid {
+    color: #198754;
+    background-color: #d1e7dd;
+}
+
+#jsonStatus.invalid {
+    color: #dc3545;
+    background-color: #f8d7da;
+}
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>JSON Data Extractor</h1>
+    <div class="tabs">
+        <button class="tab-button active" data-tab-target="#tab-raw">1. Input & Visualize</button>
+        <button class="tab-button" data-tab-target="#tab-visualize">2. View Tree</button>
+        <button class="tab-button" data-tab-target="#tab-extract">3. Extract & Download</button>
+    </div>
+
+    <div class="tab-content-container">
+        <!-- Tab 1: Raw JSON Input -->
+        <div id="tab-raw" class="tab-content active">
+            <div class="input-header">
+                <label for="jsonInput">JSON Input</label>
+                <span id="jsonStatus"></span>
+            </div>
+            <textarea id="jsonInput" placeholder='Paste your JSON here. The tree will be generated automatically.'></textarea>
+            <div id="jsonError" class="error-message"></div>
+        </div>
+
+        <!-- Tab 2: JSON Tree Visualizer -->
+        <div id="tab-visualize" class="tab-content">
+            <div id="jsonTreeContainer">Click "Visualize JSON" in the first tab to see the tree.</div>
+            <div class="path-display-container">
+                <input type="text" id="selectedPath" readonly placeholder="Click on a key/index in the tree">
+                <button id="copyPathBtn">Copy Path</button>
+            </div>
+        </div>
+
+        <!-- Tab 3: Extract & Download -->
+        <div id="tab-extract" class="tab-content">
+            <div class="extraction-controls">
+                <input type="text" id="extractionPath" placeholder="Path will appear here when selected from the tree">
+                <button id="extractBtn">Extract Data</button>
+            </div>
+            <p class="path-hint">Hint: Use <code>[i]</code> to extract all elements from an array. Example: <code>data.users[i].name</code></p>
+            <div id="extractionMessage" class="error-message"></div>
+            <div id="extractedDataContainer"><!-- Data table will be rendered here --></div>
+            <div id="downloadOptions">
+                <button id="downloadCsvBtn">Download as CSV</button>
+                <button id="downloadXlsxBtn">Download as Excel (XLSX)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    const fullscreenToggleBtn = document.getElementById('fullscreenToggleBtn');
+    const outputSectionPanel = document.querySelector('.output-section.panel'); // Get the panel
+
+    function debounce(func, delay) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+    if (fullscreenToggleBtn && outputSectionPanel) {
+        fullscreenToggleBtn.addEventListener('click', () => {
+            // Toggle a class on the body to hide other elements
+            document.body.classList.toggle('json-tree-fullscreen');
+            // Toggle a class on the output panel for its fullscreen styling
+            outputSectionPanel.classList.toggle('fullscreen-mode');
+
+            // Change button icon/text (optional)
+            if (outputSectionPanel.classList.contains('fullscreen-mode')) {
+                fullscreenToggleBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M5.5 0a.5.5 0 0 1 .5.5v4A1.5 1.5 0 0 1 4.5 6h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5zm5 0a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 10 4.5v-4a.5.5 0 0 1 .5-.5zM0 10.5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 6 11.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zm10 0a.5.5 0 0 1 .5-.5h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 1 0v4A1.5 1.5 0 0 1 14.5 12h-4a.5.5 0 0 1-.5-.5z"/>
+                    </svg> Exit Fullscreen`; // Example: "Exit Fullscreen" icon
+                fullscreenToggleBtn.title = "Exit Fullscreen";
+            } else {
+                fullscreenToggleBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>
+                    </svg> Fullscreen`; // Back to original icon
+                fullscreenToggleBtn.title = "Toggle Fullscreen";
+            }
+
+            // Optional: You might need to re-trigger ancestor height updates if the
+            // #jsonTreeContainer's available height changes drastically.
+            // This is complex because it depends on which nodes are currently expanded.
+            // For a simple fullscreen, just letting overflow handle it might be okay.
+            // If not, you'd need to find all expanded .children-container and call
+            // updateAncestorMaxHeights starting from them, or a global recalculation.
+            // For now, let's omit this unless it proves necessary.
+        });
+
+        // Also handle Esc key to exit fullscreen
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && outputSectionPanel.classList.contains('fullscreen-mode')) {
+                fullscreenToggleBtn.click(); // Simulate a click on the button to exit
+            }
+        });
+    }
+
+
+        const jsonInput = document.getElementById('jsonInput');
+        const renderBtn = document.getElementById('renderBtn');
+        const jsonTreeContainer = document.getElementById('jsonTreeContainer');
+        const selectedPathInput = document.getElementById('selectedPath');
+        const copyPathBtn = document.getElementById('copyPathBtn');
+        const jsonError = document.getElementById('jsonError');
+
+        let currentSelectedElementRef = null;
+        const MAX_INITIAL_EXPANSION_DEPTH = 0;
+
+        const svgIconPlus = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-square-fill" viewBox="0 0 16 16">
+          <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
+        </svg>`;
+        const svgIconMinus = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-dash-square-fill" viewBox="0 0 16 16">
+          <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm2.5 7.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1z"/>
+        </svg>`;
+
+        jsonInput.addEventListener('input', debounce(renderJSONTree, 400));
+
+        function renderJSONTree() {
+            jsonTreeContainer.innerHTML = 'Processing...';
+            selectedPathInput.value = '';
+            jsonError.textContent = '';
+            if (currentSelectedElementRef) {
+                currentSelectedElementRef.classList.remove('selected-node');
+                currentSelectedElementRef = null;
+            }
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    let jsonData;
+                    try {
+                        const rawJson = jsonInput.value.trim();
+                        if (!rawJson) {
+                            jsonTreeContainer.innerHTML = 'Enter JSON and click "Visualize" to see the tree.';
+                            jsonError.textContent = 'JSON input is empty.';
+                            return;
+                        }
+                        jsonData = JSON.parse(rawJson);
+                        if (typeof jsonData !== 'object' || jsonData === null) {
+                            throw new Error("Parsed JSON is not an object or array.");
+                        }
+                        jsonTreeContainer.innerHTML = '';
+                        const fragment = document.createDocumentFragment();
+                        buildTree(jsonData, '', fragment, 0, MAX_INITIAL_EXPANSION_DEPTH);
+                        jsonTreeContainer.appendChild(fragment);
+                    } catch (error) {
+                        jsonError.textContent = 'Invalid JSON: ' + error.message;
+                        jsonTreeContainer.innerHTML = '<span style="color:red;">Could not parse or process JSON. See console.</span>';
+                        console.error("JSON Processing Error in renderJSONTree:", error);
+                        if (jsonData !== undefined) {
+                            console.error("Parsed jsonData (if available) before error:", jsonData);
+                        } else {
+                            console.error("Raw JSON input that failed parsing:", jsonInput.value.trim());
+                        }
+                    }
+                }, 10);
+            });
+        }
+
+        copyPathBtn.addEventListener('click', () => {
+            if (selectedPathInput.value) {
+                navigator.clipboard.writeText(selectedPathInput.value)
+                    .then(() => {
+                        const originalText = copyPathBtn.textContent;
+                        copyPathBtn.textContent = 'Copied!';
+                        setTimeout(() => copyPathBtn.textContent = originalText, 1500);
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy path: ', err);
+                        alert('Failed to copy path. See console for details.');
+                    });
+            } else {
+                alert('No path selected to copy.');
+            }
+        });
+
+       function updateAncestorMaxHeights(toggledNodeChildrenContainer, toggledNodeKey = "N/A") {
+        const styleArgs = 'color: blue; font-weight: bold;';
+        const resetStyle = 'color: blue;';
+        const toggledNodePath = toggledNodeChildrenContainer.parentElement?.dataset.path || 'unknown';
+
+        console.log(`%cUPDATE_ANCESTORS (for node [${toggledNodeKey}] Path: ${toggledNodePath})%c`, styleArgs, resetStyle);
+
+        let currentAncestorJsonNode = toggledNodeChildrenContainer.parentElement;
+        let level = 0;
+
+        while (currentAncestorJsonNode && currentAncestorJsonNode.parentElement && currentAncestorJsonNode.parentElement !== jsonTreeContainer) {
+            level++;
+            const ancestorChildrenContainerToResize = currentAncestorJsonNode.parentElement;
+
+            if (!ancestorChildrenContainerToResize || !ancestorChildrenContainerToResize.classList.contains('children-container')) {
+                break;
+            }
+
+            const ownerOfAncestorCCToResize = ancestorChildrenContainerToResize.parentElement;
+            const ownerKey = ownerOfAncestorCCToResize?.querySelector('.json-key, .json-index')?.textContent.trim().replace(':','') || 'ROOT_OWNER';
+            const ownerPath = ownerOfAncestorCCToResize?.dataset.path || 'unknown_ancestor_path';
+
+            console.groupCollapsed(`  L${level} (UPDATE_ANCESTORS): Examining Ancestor CC of [${ownerKey}] (Path: ${ownerPath})`);
+
+            if (ancestorChildrenContainerToResize.classList.contains('expanded')) {
+                const originalMaxHeight = ancestorChildrenContainerToResize.style.maxHeight;
+                console.log(`    Ancestor CC of [${ownerKey}] current style.maxHeight (before temp reset): ${originalMaxHeight || 'not set'}`);
+
+                // Temporarily remove fixed max-height to allow content to define scrollHeight
+                ancestorChildrenContainerToResize.style.maxHeight = 'none'; // or 'auto' or a very large number like '99999px'
+
+                // Force reflow to ensure the 'none' maxHeight takes effect before reading scrollHeight
+                const _ = ancestorChildrenContainerToResize.offsetHeight;
+
+                const newRequiredHeight = ancestorChildrenContainerToResize.scrollHeight;
+                console.log(`    ... scrollHeight (after temp reset & reflow): ${newRequiredHeight}px  <-- KEY VALUE`);
+
+                // Restore original maxHeight if no change, or set new maxHeight
+                // This comparison needs to be robust
+                const originalMaxHeightPx = parseFloat(originalMaxHeight);
+                let needsUpdate = false;
+
+                if (originalMaxHeight === 'none' || originalMaxHeight === '' || isNaN(originalMaxHeightPx)) {
+                    // If original was 'none', 'auto', or not a number, we definitely need to set it.
+                    needsUpdate = true;
+                } else if (Math.round(originalMaxHeightPx) !== Math.round(newRequiredHeight)) {
+                    needsUpdate = true;
+                }
+
+
+                if (needsUpdate) {
+                    ancestorChildrenContainerToResize.style.maxHeight = newRequiredHeight + "px";
+                    console.log(`    %cACTION: Updated maxHeight for [${ownerKey}]'s CC to ${newRequiredHeight}px%c (original was ${originalMaxHeight || 'none'})`, 'color: green; font-weight:bold;', '');
+                } else {
+
+                    if (originalMaxHeight !== (newRequiredHeight + "px")) {
+
+                        ancestorChildrenContainerToResize.style.maxHeight = newRequiredHeight + "px";
+                        console.log(`    INFO: Re-applied maxHeight for [${ownerKey}]'s CC to ${newRequiredHeight}px (was ${originalMaxHeight}, scrollHeight matched).`);
+                    } else {
+                        console.log(`    NO ACTION: maxHeight for [${ownerKey}]'s CC (${originalMaxHeight}) already matches newRequiredHeight (${newRequiredHeight}px).`);
+                    }
+                }
+            } else {
+
+                console.log(`    Ancestor CC of [${ownerKey}] is COLLAPSED. style.maxHeight: ${ancestorChildrenContainerToResize.style.maxHeight || 'not set'}`);
+            }
+            console.groupEnd();
+
+            currentAncestorJsonNode = ancestorChildrenContainerToResize.parentElement;
+            if (!currentAncestorJsonNode || !currentAncestorJsonNode.classList.contains('json-node')) break;
+        }
+        console.log(`%cUPDATE_ANCESTORS (for node [${toggledNodeKey}])%c: Finished.`, styleArgs, resetStyle);
+    }
+        // This is your complete function with the bug fix applied.
+// You can replace your old function with this entire block.
+
+function buildTree(data, currentPath, parentElement, currentDepth, maxExpansionDepth) {
+    if (typeof data !== 'object' || data === null) {
+        return;
+    }
+    const entries = Object.entries(data);
+    if (entries.length === 0 && parentElement.classList && parentElement.classList.contains('children-container')) {
+        const emptyMarker = document.createElement('span');
+        emptyMarker.textContent = Array.isArray(data) ? '[]' : '{}';
+        emptyMarker.style.fontStyle = 'italic';
+        emptyMarker.style.color = '#999';
+        emptyMarker.style.marginLeft = '1.2em';
+        parentElement.appendChild(emptyMarker);
+    }
+
+    for (const [keyOrIndex, value] of entries) {
+        try {
+            const nodeElement = document.createElement('div');
+            nodeElement.classList.add('json-node');
+            const newPath = currentPath ? (Array.isArray(data) ? `${currentPath}[${keyOrIndex}]` : `${currentPath}.${keyOrIndex}`) : keyOrIndex;
+            nodeElement.dataset.path = newPath;
+
+            const keyValueLine = document.createElement('div');
+            keyValueLine.classList.add('key-value-line');
+            nodeElement.appendChild(keyValueLine);
+
+            const isParentArray = Array.isArray(data);
+            const displayKey = isParentArray ? `[${keyOrIndex}]` : `${keyOrIndex}`;
+            const isValueObjectOrArray = typeof value === 'object' && value !== null;
+
+            let childrenContainer;
+            const keyElement = document.createElement('span');
+            keyElement.classList.add(isParentArray ? 'json-index' : 'json-key');
+            keyElement.dataset.path = newPath;
+
+            // NOTE: This listener correctly works with your "Part 2" script's
+            // setInterval, which watches this input for changes. No change needed here.
+            keyElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedPathInput.value = `{{$json.${newPath}}}`;
+                if (currentSelectedElementRef) {
+                    currentSelectedElementRef.classList.remove('selected-node');
+                }
+                nodeElement.classList.add('selected-node');
+                currentSelectedElementRef = nodeElement;
+            });
+
+            if (isValueObjectOrArray) {
+                const toggler = document.createElement('span');
+                toggler.classList.add('toggler');
+                keyValueLine.appendChild(toggler);
+
+                keyElement.textContent = displayKey;
+                keyValueLine.appendChild(keyElement);
+
+                childrenContainer = document.createElement('div');
+                childrenContainer.classList.add('children-container');
+                childrenContainer.dataset.populated = "false";
+                nodeElement.appendChild(childrenContainer);
+
+                const isThisNodeInitiallyExpanded = currentDepth < maxExpansionDepth;
+
+                if (isThisNodeInitiallyExpanded) {
+                    toggler.classList.add('expanded');
+                    toggler.innerHTML = svgIconMinus;
+                    childrenContainer.classList.add('expanded');
+
+                    const childrenFragment = document.createDocumentFragment();
+                    buildTree(value, newPath, childrenFragment, currentDepth + 1, maxExpansionDepth);
+                    childrenContainer.appendChild(childrenFragment);
+                    childrenContainer.dataset.populated = "true";
+
+                    // ===========================================================================
+                    // THE FIX IS HERE:
+                    // We wrap the height calculation and visibility update in a setTimeout(..., 0).
+                    // This pushes the code to the end of the browser's execution queue, giving it
+                    // time to render the children and calculate `scrollHeight` correctly.
+                    // This fixes the bug where initially expanded nodes appear collapsed.
+                    // Your original `requestAnimationFrame` logic is now safely inside this timeout.
+                    // ===========================================================================
+                    setTimeout(() => {
+                        childrenContainer.style.maxHeight = childrenContainer.scrollHeight + "px";
+
+                        // This part for visibility and ancestor updates can now run safely.
+                        requestAnimationFrame(() => {
+                            childrenContainer.classList.add('visible');
+                            if (currentDepth < MAX_INITIAL_EXPANSION_DEPTH) {
+                               setTimeout(() => {
+                                   console.log(`%cINITIAL ANCESTOR UPDATE for [${displayKey}] Path: ${newPath}%c`, 'color: orange;', '')
+                                   updateAncestorMaxHeights(childrenContainer, `INITIAL_${displayKey}`);
+                               }, 50); // Slightly increased delay for initial updates
+                            }
+                        });
+                    }, 0); // A timeout of 0 is all that's needed to fix the race condition.
+
+                } else {
+                    toggler.innerHTML = svgIconPlus;
+                }
+
+                const transitionHandlerKey = '_jsonTreeTransitionEndHandler';
+
+                // This toggler logic for user clicks remains completely unchanged.
+                toggler.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isNowExpanded = childrenContainer.classList.toggle('expanded');
+                    toggler.classList.toggle('expanded', isNowExpanded);
+                    toggler.innerHTML = isNowExpanded ? svgIconMinus : svgIconPlus;
+
+                    const nodeKeyForLog = displayKey;
+                    const nodePathForLog = newPath;
+
+                    console.log(`%cTOGGLER CLICK for node [${nodeKeyForLog}] (Path: ${nodePathForLog})%c: isNowExpanded=${isNowExpanded}`, 'color: purple; font-weight: bold;', '');
+
+                    if (childrenContainer[transitionHandlerKey]) {
+                        childrenContainer.removeEventListener('transitionend', childrenContainer[transitionHandlerKey]);
+                        delete childrenContainer[transitionHandlerKey];
+                        console.log(`  [${nodeKeyForLog}] Removed previous transitionend handler.`);
+                    }
+
+                    if (isNowExpanded && childrenContainer.dataset.populated === "false") {
+                        console.log(`  %c[${nodeKeyForLog}] LAZY LOADING children...%c`, 'font-style: italic;', '');
+                        const childrenFragment = document.createDocumentFragment();
+                        buildTree(value, newPath, childrenFragment, currentDepth + 1, maxExpansionDepth);
+                        childrenContainer.appendChild(childrenFragment);
+                        childrenContainer.dataset.populated = "true";
+                        console.log(`  [${nodeKeyForLog}] LAZY LOADED. Its CC scrollHeight NOW: ${childrenContainer.scrollHeight}px`);
+                    }
+
+                    childrenContainer[transitionHandlerKey] = function combinedTransitionEnd(event) {
+                        if (event.target === childrenContainer && event.propertyName === 'max-height') {
+                            console.log(`%c[${nodeKeyForLog}] TransitionEND for its own CC (max-height). Path: ${nodePathForLog}%c`, 'color: teal; font-weight: bold;', '');
+
+                            childrenContainer.removeEventListener('transitionend', combinedTransitionEnd);
+                            delete childrenContainer[transitionHandlerKey];
+
+                            const containerRect = jsonTreeContainer.getBoundingClientRect();
+                            const nodeElementRect = nodeElement.getBoundingClientRect();
+                            if (nodeElementRect.height > containerRect.height) {
+                                keyValueLine.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+                            } else {
+                                nodeElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                            }
+                            console.log(`  [${nodeKeyForLog}] scrollIntoView logic executed.`);
+
+                            let currentPass = 0;
+                            const maxPasses = 3;
+                            const delayBetweenPassesMs = 50;
+
+                            function scheduleNextAncestorUpdatePass() {
+                                currentPass++;
+                                if (currentPass <= maxPasses) {
+                                    console.log(`  [${nodeKeyForLog}] Scheduling PASS ${currentPass}/${maxPasses} of ancestor update (delay: ${delayBetweenPassesMs}ms)`);
+                                    setTimeout(() => {
+                                        console.log(`  %c[${nodeKeyForLog}] updateAncestorMaxHeights - EXECUTING PASS ${currentPass}/${maxPasses}...%c`, 'color: #FF8C00; font-weight:bold;', '');
+                                        updateAncestorMaxHeights(childrenContainer, `${nodeKeyForLog}_Pass${currentPass}`);
+                                        scheduleNextAncestorUpdatePass();
+                                    }, delayBetweenPassesMs * (currentPass === 1 ? 0 : 1));
+                                } else {
+                                    console.log(`  [${nodeKeyForLog}] Max ancestor update passes reached.`);
+                                }
+                            }
+                            scheduleNextAncestorUpdatePass();
+                        }
+                    };
+                    childrenContainer.addEventListener('transitionend', childrenContainer[transitionHandlerKey]);
+
+                    if (isNowExpanded) {
+                        console.log(`  [${nodeKeyForLog}] EXPANDING. Its CC current scrollHeight: ${childrenContainer.scrollHeight}px. Setting its maxHeight to trigger transition.`);
+                        childrenContainer.style.maxHeight = childrenContainer.scrollHeight + "px";
+                        requestAnimationFrame(() => { childrenContainer.classList.add('visible'); });
+                    } else {
+                        console.log(`  [${nodeKeyForLog}] COLLAPSING. Setting Its CC maxHeight to 0px to trigger transition.`);
+                        childrenContainer.classList.remove('visible');
+                        childrenContainer.style.maxHeight = "0px";
+                    }
+                });
+
+            } else { // The 'value' is a PRIMITIVE
+                const placeholderToggler = document.createElement('span');
+                placeholderToggler.classList.add('toggler-placeholder');
+                keyValueLine.appendChild(placeholderToggler);
+
+                keyElement.textContent = displayKey + ': ';
+                keyValueLine.appendChild(keyElement);
+
+                const valueElement = createValueElement(value);
+                keyValueLine.appendChild(valueElement);
+            }
+            parentElement.appendChild(nodeElement);
+        } catch (error) {
+            console.error(`RENDER_ERROR for key "${keyOrIndex}" at path "${currentPath}":`, error);
+            console.error("Value that caused error:", value);
+            console.error("Data (parent object/array) being processed:", data);
+            const errorNode = document.createElement('div');
+            errorNode.className = 'render-error-node';
+            errorNode.textContent = `Error rendering [${keyOrIndex}]. Check console.`;
+            parentElement.appendChild(errorNode);
+        }
+    }
+}
+
+        function createValueElement(value) {
+            const valueElement = document.createElement('span');
+            valueElement.classList.add('json-value');
+            let type = typeof value;
+            if (value === null) type = 'null';
+            valueElement.classList.add(type);
+            valueElement.textContent = type === 'string' ? `"${value}"` : String(value);
+            return valueElement;
+        }
+
+        jsonInput.value = JSON.stringify(
+            {
+                "actionResult": "SUCCESS",
+                "webMinerCode": "DATA_LOADED",
+                "message": "Data loaded successfully",
+                "defaultMessage": "Data loaded successfully",
+                "data": {
+                    "id": 59938,
+                    "jobName": "Modalis Therapeutics News",
+                    "url": "https://modalistx.com/en/",
+                    "docType": "HTML",
+                    "nestedObject": {
+                        "prop1": "value1",
+                        "prop2": 123,
+                        "deeplyNested": {
+                            "deepKey": "deepValue",
+                            "anotherPrimitive": null,
+                            "anArray": [10,20,{"arrObjKey": "arrObjVal", "anotherNestedArr": [1,2,{"fin": "end"}]}]
+                        }
+                    },
+                    "simpleArray": ["item1", 2, false, {"objInArray": "yes"}],
+                    "priority": "Medium",
+                    "emptyObject": {},
+                    "emptyArray": []
+                }
+            }, null, 2);
+
+        document.addEventListener('DOMContentLoaded', renderJSONTree);
+
+
+    // ===================================================================================
+    // PART 2: NEW JAVASCRIPT FOR TABS AND DATA EXTRACTION
+    // This code works with your original script without modifying it.
+    // ===================================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+
+    // --- NEW DOM ELEMENTS ---
+    const tabs = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const extractionPathInput = document.getElementById('extractionPath');
+    const extractBtn = document.getElementById('extractBtn');
+    const extractionMessage = document.getElementById('extractionMessage');
+    const extractedDataContainer = document.getElementById('extractedDataContainer');
+    const downloadOptions = document.getElementById('downloadOptions');
+    const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+    const downloadXlsxBtn = document.getElementById('downloadXlsxBtn');
+
+    // --- LOGIC FOR TAB SWITCHING ---
+    tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+
+    tabContents.forEach(content => content.classList.remove('active'));
+    document.querySelector(tab.dataset.tabTarget).classList.add('active');
+    });
+    });
+
+    // --- LINKING LOGIC: Connects your old script's output to the new tab ---
+    // This watches for changes in the original #selectedPath input and copies it
+    // to the new #extractionPath input. This is the "bridge".
+    const originalPathInput = document.getElementById('selectedPath');
+    let lastKnownPath = '';
+    setInterval(() => {
+    if (originalPathInput && originalPathInput.value !== lastKnownPath) {
+    lastKnownPath = originalPathInput.value;
+    // We strip the `{{$json.}}` part for the raw path
+    const rawPath = lastKnownPath.replace(/{{[^}]*?\.([^}]+)}}/, '$1');
+    extractionPathInput.value = rawPath;
+    }
+    }, 200); // Check every 200ms
+
+    // --- EXTRACTION LOGIC ---
+// --- EXTRACTION LOGIC (with wildcard support) ---
+extractBtn.addEventListener('click', handleExtraction);
+
+function handleExtraction() {
+    const path = extractionPathInput.value.trim();
+    extractionMessage.textContent = '';
+    extractedDataContainer.innerHTML = '';
+    downloadOptions.style.display = 'none';
+
+    if (!path) { extractionMessage.textContent = 'Please provide a path to extract.'; return; }
+
+    const rawJson = document.getElementById('jsonInput').value;
+    if (!rawJson) { extractionMessage.textContent = 'JSON input is empty.'; return; }
+
+    try {
+        const jsonData = JSON.parse(rawJson);
+        const data = getValueByPath(jsonData, path);
+
+        if (data === undefined || (Array.isArray(data) && data.every(item => item === undefined))) {
+            extractionMessage.textContent = `Path not found or returned no data: "${path}"`;
+            return;
+        }
+
+        renderDataTable(data);
+        if (data !== null && data !== undefined) {
+            downloadOptions.style.display = 'flex';
+        }
+    } catch (error) {
+        extractionMessage.textContent = 'Error: ' + error.message;
+        console.error("Extraction Error:", error);
+    }
+}
+
+function getValueByPath(obj, path) {
+    // Split the path by dots, but keep bracket notation intact.
+    // e.g., 'records[i].TCTRID' -> ['records', '[i]', 'TCTRID']
+    const parts = path.match(/([^[.\]]+)|(\[[^\]]+\])/g);
+
+    if (!parts) {
+        return undefined;
+    }
+
+    let current = obj;
+
+    for (let i = 0; i < parts.length; i++) {
+        if (current === undefined || current === null) {
+            return undefined;
+        }
+
+        let part = parts[i];
+
+        // Check for wildcard array syntax: [i]
+        if (part === '[i]') {
+            if (!Array.isArray(current)) {
+                // Tried to use [i] on something that is not an array
+                console.error(`Path error: "[i]" was used on a non-array value.`, current);
+                return undefined;
+            }
+
+            const remainingPath = parts.slice(i + 1).join('.');
+            if (!remainingPath) {
+                // If [i] is the last part of the path, return the whole array
+                return current;
+            }
+
+            // Apply the rest of the path to each item in the array
+            return current.map(item => getValueByPath(item, remainingPath)).filter(item => item !== undefined);
+        }
+
+        // Handle standard bracket or dot notation
+        let key = part.replace(/\[|\]/g, ''); // Clean up brackets for direct access
+        current = current[key];
+    }
+
+    return current;
+}
+
+    // --- DATA TABLE & DOWNLOAD LOGIC ---
+    let extractedDataForDownload = null;
+
+    function renderDataTable(data) {
+    extractedDataForDownload = data; // Store for download buttons
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
+
+    if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
+    const headers = [...new Set(data.flatMap(obj => Object.keys(obj)))];
+    const tr = document.createElement('tr');
+    headers.forEach(h => tr.innerHTML += `<th>${h}</th>`);
+    thead.appendChild(tr);
+    data.forEach(obj => {
+    const tr = document.createElement('tr');
+    headers.forEach(h => {
+    const value = obj[h];
+    const displayValue = (value !== null && value !== undefined) ? (typeof value === 'object' ? JSON.stringify(value) : String(value)) : '';
+    tr.innerHTML += `<td>${displayValue}</td>`;
+    });
+    tbody.appendChild(tr);
+    });
+    } else if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    thead.innerHTML = '<tr><th>Key</th><th>Value</th></tr>';
+    for(const [k, v] of Object.entries(data)) tbody.innerHTML += `<tr><td>${k}</td><td>${String(v)}</td></tr>`;
+    } else if (Array.isArray(data)) {
+    thead.innerHTML = '<tr><th>Value</th></tr>';
+    data.forEach(item => tbody.innerHTML += `<tr><td>${String(item)}</td></tr>`);
+    } else {
+    thead.innerHTML = '<tr><th>Value</th></tr>';
+    tbody.innerHTML += `<tr><td>${String(data)}</td></tr>`;
+    }
+    table.append(thead, tbody);
+    extractedDataContainer.innerHTML = '';
+    extractedDataContainer.appendChild(table);
+    }
+
+    downloadCsvBtn.addEventListener('click', () => {
+    const dataToDownload = Array.isArray(extractedDataForDownload) ? extractedDataForDownload : [extractedDataForDownload];
+    const ws = XLSX.utils.json_to_sheet(dataToDownload);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, 'data.csv');
+    });
+
+    downloadXlsxBtn.addEventListener('click', () => {
+    const dataToDownload = Array.isArray(extractedDataForDownload) ? extractedDataForDownload : [extractedDataForDownload];
+    const worksheet = XLSX.utils.json_to_sheet(dataToDownload);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+    XLSX.writeFile(workbook, 'data.xlsx');
+    });
+
+    function triggerDownload(blob, filename) {
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    }
+    });
+</script>
+</body>
+</html><script>
+(function() {
+  var ws = new WebSocket('ws://' + window.location.host + 
+             '/jb-server-page?reloadMode=RELOAD_ON_SAVE&'+
+             'referrer=' + encodeURIComponent(window.location.pathname));
+  ws.onmessage = function (msg) {
+      if (msg.data === 'reload') {
+          window.location.reload();
+      }
+      if (msg.data.startsWith('update-css ')) {
+          var messageId = msg.data.substring(11);
+          var links = document.getElementsByTagName('link');
+          for (var i = 0; i < links.length; i++) {
+              var link = links[i];
+              if (link.rel !== 'stylesheet') continue;
+              var clonedLink = link.cloneNode(true);
+              var newHref = link.href.replace(/(&|\?)jbUpdateLinksId=\d+/, "$1jbUpdateLinksId=" + messageId);
+              if (newHref !== link.href) {
+                clonedLink.href = newHref;
+              }
+              else {
+                var indexOfQuest = newHref.indexOf('?');
+                if (indexOfQuest >= 0) {
+                  // to support ?foo#hash 
+                  clonedLink.href = newHref.substring(0, indexOfQuest + 1) + 'jbUpdateLinksId=' + messageId + '&' + 
+                                    newHref.substring(indexOfQuest + 1);
+                }
+                else {
+                  clonedLink.href += '?' + 'jbUpdateLinksId=' + messageId;
+                }
+              }
+              link.replaceWith(clonedLink);
+          }
+      }
+  };
+})();
+</script>

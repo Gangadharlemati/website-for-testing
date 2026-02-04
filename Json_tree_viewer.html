@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Tree Viewer</title>
+    <style>
+        /* CSS Variables */
+        :root {
+            --bg-color: #fafafa;
+            --text-color: #000000;
+            --header-bg: #e0e0e0;
+            --header-border: #cccccc;
+            --tab-text: #555555;
+            --tab-active-bg: #e0e0e0;
+            --tab-active-text: #000000;
+            --editor-bg: #fafafa;
+            --tree-bg: #fafafa;
+            --scrollbar-track: #efefef;
+            --scrollbar-thumb: #c0c0c0;
+            --scrollbar-thumb-hover: #a0a0a0;
+            --line-color: #d0d0d0;
+            
+            /* Syntax Highlighting */
+            --key-color: #001080;
+            --colon-color: #000000;
+            --string-color: #a31515;
+            --number-color: #098658;
+            --boolean-color: #0000ff;
+            --null-color: #0000ff;
+            --bracket-color: #6a6a6a;
+            --count-color: #808080;
+
+            /* Icon Colors */
+            --icon-object: #795E26;
+            --icon-array: #098658;
+            --icon-prop: #0451A5;
+            --icon-toggle-bg: #e0e0e0;
+            --icon-toggle-stroke: #a0a0a0;
+            --icon-toggle-path: #000000;
+
+            /* Context Menu */
+            --menu-bg: #ffffff;
+            --menu-border: #cccccc;
+            --menu-hover: #e6f7ff;
+            --menu-text: #333333;
+            --menu-shadow: rgba(0,0,0,0.2);
+        }
+
+        body.dark {
+            --bg-color: #121212;
+            --text-color: #d4d4d4;
+            --header-bg: #1e1e1e;
+            --header-border: #333333;
+            --tab-text: #969696;
+            --tab-active-bg: #1e1e1e;
+            --tab-active-text: #ffffff;
+            --editor-bg: #181818;
+            --tree-bg: #181818;
+            --scrollbar-track: #181818;
+            --scrollbar-thumb: #424242;
+            --scrollbar-thumb-hover: #4e4e4e;
+            --line-color: #3e3e42;
+            
+            /* Dark Syntax */
+            --key-color: #9cdcfe;
+            --colon-color: #d4d4d4;
+            --string-color: #ce9178;
+            --number-color: #b5cea8;
+            --boolean-color: #569cd6;
+            --null-color: #569cd6;
+            --bracket-color: #808080;
+            --count-color: #6a6a6a;
+
+             /* Dark Icons */
+            --icon-object: #DCAA50;
+            --icon-array: #4EC9B0;
+            --icon-prop: #9CDCFE;
+            --icon-toggle-bg: #505050;
+            --icon-toggle-stroke: #808080;
+            --icon-toggle-path: #d4d4d4;
+
+            /* Dark Context Menu */
+            --menu-bg: #252526;
+            --menu-border: #454545;
+            --menu-hover: #094771;
+            --menu-text: #cccccc;
+            --menu-shadow: rgba(0,0,0,0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.3s; 
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            zoom: 0.9;
+        }
+
+        /* Tabs & Toolbar */
+        .tabs {
+            display: flex;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--header-border);
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: var(--tab-text);
+            font-size: 13px;
+            font-family: inherit;
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { color: var(--text-color); }
+        
+        .tab.active {
+            color: var(--tab-active-text);
+            background: var(--tab-active-bg);
+            border-bottom: 1px solid #007acc;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tab-content.active { display: flex; flex-direction: column; }
+
+        /* Text Editor */
+        .text-editor { flex: 1; display: flex; flex-direction: column; }
+
+        .editor-toolbar {
+            background: var(--header-bg);
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--header-border);
+            display: flex;
+            gap: 8px;
+        }
+
+        .editor-toolbar button {
+            padding: 6px 12px;
+            background: #007acc;
+            color: #ffffff;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+        }
+
+        .editor-toolbar button:hover { background: #005a9e; }
+
+        .editor-toolbar button.secondary {
+            background: #6c6c6c;
+        }
+        .editor-toolbar button.secondary:hover { background: #5a5a5a; }
+        
+        .editor-toolbar button.theme-toggle {
+            background: #6c6c6c;
+            margin-left: auto;
+            padding: 6px 10px;
+            font-size: 16px;
+            min-width: 32px;
+        }
+        .editor-toolbar button.theme-toggle:hover { background: #5a5a5a; }
+
+        textarea {
+            flex: 1;
+            background: var(--editor-bg);
+            color: var(--text-color);
+            border: none;
+            padding: 16px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            white-space: pre;
+            overflow: auto;
+        }
+
+        textarea::placeholder { color: var(--count-color); }
+
+        /* Viewer */
+        .tree-viewer {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+            background: var(--tree-bg);
+            white-space: nowrap;
+        }
+
+        .tree-viewer.wrap-text { white-space: normal; word-wrap: break-word; }
+
+        .viewer-footer {
+            background: var(--header-bg);
+            padding: 6px 12px;
+            border-top: 1px solid var(--header-border);
+            font-size: 11px;
+            color: var(--count-color);
+            text-align: right;
+            z-index: 5;
+        }
+
+        /* Floating Button */
+        .floating-wrap-btn {
+            position: absolute;
+            bottom: 36px;
+            right: 20px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #007acc;
+            color: white;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: transform 0.2s, background 0.2s;
+            z-index: 10;
+            opacity: 0.9;
+        }
+        .floating-wrap-btn:hover { transform: scale(1.1); background: #005a9e; opacity: 1; }
+
+        /* Scrollbars */
+        .tree-viewer::-webkit-scrollbar { width: 10px; height: 10px; }
+        .tree-viewer::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        .tree-viewer::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 5px; }
+        .tree-viewer::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+        /* Tree UI Elements */
+        .tree-node { position: relative; margin-left: 20px; cursor: default; }
+        .tree-node.root { margin-left: 0; }
+        
+        .tree-item {
+            display: flex; align-items: center; gap: 6px;
+            min-height: 24px; position: relative; padding: 2px 0;
+            border-radius: 2px;
+        }
+        .tree-item:hover { background: rgba(128, 128, 128, 0.1); }
+
+        .tree-line {
+            position: absolute;
+            left: -11px; top: 0; bottom: 0; width: 1px;
+            background: var(--line-color);
+        }
+        .tree-node:last-child > .tree-line { bottom: auto; height: 12px; }
+
+        .tree-item::before {
+            content: ''; position: absolute;
+            left: -11px; top: 12px; width: 11px; height: 1px;
+            background: var(--line-color);
+        }
+        .tree-node.root > .tree-item::before { display: none; }
+
+        .toggle {
+            width: 20px; height: 20px;
+            display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; flex-shrink: 0; user-select: none;
+        }
+        .toggle:hover { opacity: 0.8; }
+        .toggle.empty { pointer-events: none; opacity: 0; }
+        
+        .icon-svg { width: 18px; height: 18px; flex-shrink: 0; }
+        
+        .tree-key { color: var(--key-color); }
+        .tree-colon { color: var(--colon-color); margin: 0 4px; }
+        
+        .tree-value { color: var(--string-color); }
+        .tree-value.number { color: var(--number-color); }
+        .tree-value.boolean { color: var(--boolean-color); }
+        .tree-value.null { color: var(--null-color); }
+
+        .tree-bracket { color: var(--bracket-color); margin-left: 6px; }
+        .tree-count { color: var(--count-color); font-size: 11px; }
+        .tree-inline { display: inline-flex; align-items: center; gap: 4px; }
+
+        .tree-children { margin-left: 0; }
+        .tree-children.hidden { display: none; }
+
+        .empty-state {
+            display: flex; align-items: center; justify-content: center;
+            height: 100%; color: var(--count-color); font-size: 14px;
+        }
+
+        .error-message {
+            color: #e51400; background: #3a1b1b; padding: 12px; margin: 16px;
+            border-left: 3px solid #e51400; font-size: 13px;
+        }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            z-index: 1000;
+            background: var(--menu-bg);
+            border: 1px solid var(--menu-border);
+            box-shadow: 0 4px 10px var(--menu-shadow);
+            border-radius: 4px;
+            display: none;
+            min-width: 160px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: var(--menu-text);
+        }
+        .context-menu.visible { display: block; }
+        
+        .menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .menu-item:hover { background: var(--menu-hover); }
+        .menu-separator {
+            height: 1px;
+            background: var(--menu-border);
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('text')">Text</button>
+            <button class="tab" onclick="switchTab('viewer')">Viewer</button>
+        </div>
+
+        <div id="text-tab" class="tab-content active">
+            <div class="text-editor">
+                <div class="editor-toolbar">
+                    <button class="secondary" onclick="triggerUpload()">Upload File</button>
+                    <input type="file" id="fileInput" hidden accept=".json,.txt" onchange="handleFile(this)">
+                    
+                    <button onclick="formatJSON()">Format</button>
+                    <button onclick="clearText()">Clear</button>
+                    
+                    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">◐</button>
+                </div>
+                <textarea id="jsonInput" placeholder="Paste your JSON here or click Upload File..."></textarea>
+            </div>
+        </div>
+
+        <div id="viewer-tab" class="tab-content">
+            <button class="floating-wrap-btn" onclick="toggleWrap()" title="Toggle text wrapping">↔</button>
+            
+            <div id="contextMenu" class="context-menu">
+                <div class="menu-item" onclick="handleMenuAction('copyValue')">Copy Value</div>
+                <div class="menu-item" onclick="handleMenuAction('copyPath')">Copy Path</div>
+                <div class="menu-separator"></div>
+                <div class="menu-item" onclick="handleMenuAction('expandAll')">Expand Recursive</div>
+                <div class="menu-item" onclick="handleMenuAction('collapseAll')">Collapse Recursive</div>
+            </div>
+
+            <div class="tree-viewer" id="treeViewer">
+                <div class="empty-state">No JSON data to display. Paste JSON in Text tab.</div>
+            </div>
+            <div class="viewer-footer" id="viewerFooter">Ready</div>
+        </div>
+    </div>
+
+    <script>
+        // Global State
+        let currentTab = 'text';
+        let jsonData = null;
+        let parseTimeout = null;
+        let contextNode = null;
+
+        // --- SVGs ---
+        const svgs = {
+            object: `<svg class="icon-svg" viewBox="0 0 18 18" fill="none"><text x="9" y="14" font-family="Consolas, monospace" font-size="15" font-weight="bold" fill="var(--icon-object)" text-anchor="middle">{}</text></svg>`,
+            array: `<svg class="icon-svg" viewBox="0 0 18 18" fill="none"><text x="9" y="14" font-family="Consolas, monospace" font-size="15" font-weight="bold" fill="var(--icon-array)" text-anchor="middle">[]</text></svg>`,
+            property: `<svg class="icon-svg" viewBox="0 0 18 18" fill="none"><rect x="5" y="5" width="8" height="8" rx="1" fill="var(--icon-prop)"/></svg>`,
+            collapsed: `<svg class="icon-svg" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2" fill="var(--icon-toggle-bg)" stroke="var(--icon-toggle-stroke)" stroke-width="1"/><path d="M10 7V13M7 10H13" stroke="var(--icon-toggle-path)" stroke-width="2" stroke-linecap="round"/></svg>`,
+            expanded: `<svg class="icon-svg" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2" fill="var(--icon-toggle-bg)" stroke="var(--icon-toggle-stroke)" stroke-width="1"/><path d="M7 10H13" stroke="var(--icon-toggle-path)" stroke-width="2" stroke-linecap="round"/></svg>`
+        };
+
+        // --- Event Listeners ---
+        document.getElementById('jsonInput').addEventListener('input', function() {
+            clearTimeout(parseTimeout);
+            parseTimeout = setTimeout(parseAndDisplayTree, 500);
+        });
+
+        const treeViewer = document.getElementById('treeViewer');
+
+        // Toggle Expand/Collapse (Left Click)
+        treeViewer.addEventListener('click', function(e) {
+            const toggleBtn = e.target.closest('.toggle');
+            if (toggleBtn && !toggleBtn.classList.contains('empty')) {
+                handleToggle(toggleBtn);
+            }
+            hideContextMenu();
+        });
+
+        // Context Menu (Right Click)
+        treeViewer.addEventListener('contextmenu', function(e) {
+            const target = e.target.closest('.tree-item');
+            if (!target) return;
+
+            e.preventDefault();
+            
+            const toggleBtn = target.querySelector('.toggle');
+            if (!toggleBtn) return;
+
+            const pathStr = toggleBtn.getAttribute('data-path');
+            const pathArray = pathStr ? JSON.parse(pathStr.replace(/&quot;/g, '"')) : [];
+            const isExpandable = !toggleBtn.classList.contains('empty');
+
+            contextNode = {
+                path: pathArray,
+                element: toggleBtn,
+                isExpandable: isExpandable
+            };
+
+            showContextMenu(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('click', hideContextMenu);
+        document.addEventListener('scroll', hideContextMenu, true);
+
+        // --- File Upload Logic ---
+        function triggerUpload() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFile(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('jsonInput').value = e.target.result;
+                    parseAndDisplayTree();
+                };
+                reader.readAsText(input.files[0]);
+                input.value = '';
+            }
+        }
+
+        // --- Context Menu Logic ---
+        const menu = document.getElementById('contextMenu');
+
+        function showContextMenu(x, y) {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            menu.classList.add('visible');
+            const menuWidth = menu.offsetWidth;
+            const menuHeight = menu.offsetHeight;
+
+            let posX = x;
+            let posY = y;
+
+            if (x + menuWidth > viewportWidth) posX = x - menuWidth;
+            if (y + menuHeight > viewportHeight) posY = y - menuHeight;
+
+            menu.style.left = `${posX}px`;
+            menu.style.top = `${posY}px`;
+        }
+
+        function hideContextMenu() {
+            menu.classList.remove('visible');
+        }
+
+        function handleMenuAction(action) {
+            if (!contextNode) return;
+            const { path, element, isExpandable } = contextNode;
+            const value = getValueByPath(jsonData, path);
+
+            if (action === 'copyValue') {
+                const text = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                navigator.clipboard.writeText(text);
+            } 
+            else if (action === 'copyPath') {
+                let pathStr = '';
+                path.forEach(p => {
+                    pathStr += typeof p === 'number' ? `[${p}]` : `["${p}"]`;
+                });
+                if(!pathStr) pathStr = "root";
+                navigator.clipboard.writeText(pathStr);
+            }
+            else if (action === 'expandAll') {
+                if (isExpandable) {
+                    expandRecursive(element, path);
+                }
+            }
+            else if (action === 'collapseAll') {
+                if (isExpandable) {
+                    collapseRecursive(element);
+                }
+            }
+        }
+
+        function expandRecursive(btn, path) {
+            btn.setAttribute('data-expanded', 'true');
+            btn.innerHTML = svgs.expanded;
+            
+            const containerId = `children-${hashPath(path)}`;
+            let container = document.getElementById(containerId);
+            
+            if (container) {
+                const value = getValueByPath(jsonData, path);
+                const fullHTML = renderChildren(value, path, true);
+                container.innerHTML = fullHTML;
+                container.classList.remove('hidden');
+            }
+        }
+
+        function collapseRecursive(btn) {
+            btn.setAttribute('data-expanded', 'false');
+            btn.innerHTML = svgs.collapsed;
+            
+            const pathStr = btn.getAttribute('data-path');
+            const path = JSON.parse(pathStr.replace(/&quot;/g, '"'));
+            const containerId = `children-${hashPath(path)}`;
+            const container = document.getElementById(containerId);
+            
+            if (container) {
+                container.classList.add('hidden');
+                // FIX: Wipe innerHTML. This destroys all children. 
+                // Next time we open, it will re-render them in default (collapsed) state.
+                container.innerHTML = '';
+            }
+        }
+
+        // --- Core Tree Logic ---
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`${tab}-tab`).classList.add('active');
+            currentTab = tab;
+        }
+
+        function formatJSON() {
+            const el = document.getElementById('jsonInput');
+            if (!el.value.trim()) return;
+            try {
+                const parsed = JSON.parse(el.value);
+                el.value = JSON.stringify(parsed, null, 2);
+                parseAndDisplayTree();
+            } catch (e) { alert('Invalid JSON: ' + e.message); }
+        }
+
+        function clearText() { document.getElementById('jsonInput').value = ''; }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+
+        function toggleWrap() {
+            document.getElementById('treeViewer').classList.toggle('wrap-text');
+        }
+
+        function parseAndDisplayTree() {
+            const input = document.getElementById('jsonInput').value.trim();
+            const viewer = document.getElementById('treeViewer');
+            const footer = document.getElementById('viewerFooter');
+
+            if (!input) {
+                viewer.innerHTML = '<div class="empty-state">No JSON data to display. Paste JSON in Text tab.</div>';
+                footer.textContent = 'Ready';
+                jsonData = null;
+                return;
+            }
+
+            try {
+                jsonData = JSON.parse(input);
+                viewer.innerHTML = buildNodeHTML(jsonData, 'root', [], false, false);
+                
+                const size = input.length;
+                const sizeStr = size > 1024 * 1024 ? (size/1024/1024).toFixed(2) + ' MB' : (size/1024).toFixed(2) + ' KB';
+                footer.textContent = `Parsed successfully (${sizeStr})`;
+            } catch (e) {
+                viewer.innerHTML = `<div class="error-message"><strong>Error parsing JSON:</strong><br>${escapeHtml(e.message)}</div>`;
+                footer.textContent = 'Error';
+            }
+        }
+
+        function buildNodeHTML(data, key, pathArray, isRoot = false, forceExpand = false) {
+            const type = Array.isArray(data) ? 'array' : (data === null ? 'null' : typeof data);
+            const htmlParts = [];
+            const pathStr = JSON.stringify(pathArray).replace(/"/g, '&quot;');
+
+            htmlParts.push(`<div class="tree-node ${isRoot ? 'root' : ''}">`);
+
+            if (!isRoot) {
+                htmlParts.push(`<div class="tree-line"></div>`);
+            }
+
+            htmlParts.push(`<div class="tree-item">`);
+
+            if (type === 'object' || type === 'array') {
+                const count = type === 'array' ? data.length : Object.keys(data).length;
+                if (count > 0) {
+                    const iconState = forceExpand ? svgs.expanded : svgs.collapsed;
+                    const expandState = forceExpand ? 'true' : 'false';
+                    htmlParts.push(`<span class="toggle" data-expanded="${expandState}" data-path="${pathStr}">${iconState}</span>`);
+                } else {
+                    htmlParts.push(`<span class="toggle empty"></span>`);
+                }
+            } else {
+                htmlParts.push(`<span class="toggle empty"></span>`);
+            }
+
+            if (type === 'object') htmlParts.push(svgs.object);
+            else if (type === 'array') htmlParts.push(svgs.array);
+            else htmlParts.push(svgs.property);
+
+            if (key !== 'root') {
+                htmlParts.push(`<span class="tree-key">${escapeHtml(key)}</span>`);
+                if (type !== 'object' && type !== 'array') {
+                   htmlParts.push(`<span class="tree-colon">:</span>`);
+                }
+            }
+
+            if (type === 'object' || type === 'array') {
+                const isArr = type === 'array';
+                const count = isArr ? data.length : Object.keys(data).length;
+                const brackets = isArr ? ['[', ']'] : ['{', '}'];
+
+                htmlParts.push(`<span class="tree-inline">`);
+                htmlParts.push(`<span class="tree-bracket">${brackets[0]}</span>`);
+                
+                if (count > 0) {
+                    htmlParts.push(`<span class="tree-count">${count} ${count === 1 ? 'item' : 'items'}</span>`);
+                    htmlParts.push(`<span class="tree-bracket">${brackets[1]}</span>`);
+                } else {
+                    htmlParts.push(`<span class="tree-bracket">${brackets[1]}</span>`);
+                }
+                htmlParts.push(`</span>`);
+                htmlParts.push(`</div>`);
+
+                if (count > 0) {
+                    const hiddenClass = forceExpand ? '' : 'hidden';
+                    const childrenContent = forceExpand ? renderChildren(data, pathArray, true) : '';
+                    htmlParts.push(`<div class="tree-children ${hiddenClass}" id="children-${hashPath(pathArray)}">${childrenContent}</div>`);
+                }
+
+            } else {
+                let valClass = 'tree-value ' + type;
+                let valStr = String(data);
+                if (type === 'string') valStr = `"${escapeHtml(data)}"`;
+                htmlParts.push(`<span class="${valClass}">${valStr}</span>`);
+                htmlParts.push(`</div>`);
+            }
+
+            htmlParts.push(`</div>`);
+            return htmlParts.join('');
+        }
+
+        function handleToggle(btn) {
+            const isExpanded = btn.getAttribute('data-expanded') === 'true';
+            const pathStr = btn.getAttribute('data-path');
+            const pathArray = JSON.parse(pathStr.replace(/&quot;/g, '"'));
+            const containerId = `children-${hashPath(pathArray)}`;
+            const container = document.getElementById(containerId);
+
+            if (!isExpanded) {
+                btn.setAttribute('data-expanded', 'true');
+                btn.innerHTML = svgs.expanded;
+                
+                if (container) {
+                    container.classList.remove('hidden');
+                    if (container.innerHTML === '') {
+                        const dataNode = getValueByPath(jsonData, pathArray);
+                        container.innerHTML = renderChildren(dataNode, pathArray, false);
+                    }
+                }
+            } else {
+                btn.setAttribute('data-expanded', 'false');
+                btn.innerHTML = svgs.collapsed;
+                if (container) container.classList.add('hidden');
+            }
+        }
+
+        function renderChildren(data, parentPath, forceExpand = false) {
+            if (!data) return '';
+            const html = [];
+            
+            if (Array.isArray(data)) {
+                data.forEach((item, index) => {
+                    const newPath = [...parentPath, index];
+                    html.push(buildNodeHTML(item, index, newPath, false, forceExpand));
+                });
+            } else {
+                Object.keys(data).forEach(key => {
+                    const newPath = [...parentPath, key];
+                    html.push(buildNodeHTML(data[key], key, newPath, false, forceExpand));
+                });
+            }
+            return html.join('');
+        }
+
+        function getValueByPath(obj, path) {
+            let current = obj;
+            for (let i = 0; i < path.length; i++) {
+                if (current === undefined) return undefined;
+                current = current[path[i]];
+            }
+            return current;
+        }
+
+        function hashPath(path) {
+            let str = path.join('-');
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return 'node-' + Math.abs(hash);
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark');
+        }
+    </script>
+</body>
+</html>
